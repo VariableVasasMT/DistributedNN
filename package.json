@@ -1,0 +1,30 @@
+{
+  "name": "distributed-neural-signaling-server",
+  "version": "1.0.0",
+  "description": "Signaling server for Distributed Neural Network P2P discovery and WebRTC coordination",
+  "main": "signaling-server.js",
+  "scripts": {
+    "start": "node signaling-server.js",
+    "dev": "nodemon signaling-server.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "p2p",
+    "webrtc",
+    "neural-network",
+    "distributed",
+    "blockchain",
+    "signaling"
+  ],
+  "author": "Kritivasas",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+} 

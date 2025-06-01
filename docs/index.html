@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Distributed Neural Network - Live Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+        
+        .github-link {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            text-decoration: none;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .github-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .demo-status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            font-weight: bold;
+            background: rgba(255, 217, 61, 0.3);
+            border: 1px solid rgba(255, 217, 61, 0.5);
+        }
+        
+        .demo-status.ready {
+            background: rgba(0, 255, 136, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+        }
+        
+        .demo-status.error {
+            background: rgba(255, 107, 107, 0.3);
+            border: 1px solid rgba(255, 107, 107, 0.5);
+        }
+        
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .control-panel {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .control-panel h3 {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .input-group input, 
+        .input-group select {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-blockchain {
+            background: linear-gradient(45deg, #FFD93D, #6BCF7F);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4ECDC4;
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 5px;
+        }
+        
+        .blockchain-stat {
+            border: 2px solid #FFD93D;
+        }
+        
+        .blockchain-stat .stat-value {
+            color: #FFD93D;
+        }
+        
+        .output-area {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 20px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        
+        .log-info { color: #00ff88; }
+        .log-error { color: #ff6b6b; }
+        .log-warning { color: #ffd93d; }
+        .log-blockchain { color: #FFD93D; font-weight: bold; }
+        .log-p2p { color: #00BCD4; }
+        
+        .visualization {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .canvas-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .canvas-wrapper {
+            text-align: center;
+        }
+        
+        .canvas-wrapper h4 {
+            margin-bottom: 10px;
+        }
+        
+        canvas {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+            height: 200px;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .feature-card h4 {
+            margin-bottom: 10px;
+            color: #4ECDC4;
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .feature-list li::before {
+            content: "✅";
+            position: absolute;
+            left: 0;
+        }
+        
+        @media (max-width: 768px) {
+            .control-grid,
+            .canvas-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠⛓️ Distributed Neural Network</h1>
+            <p class="subtitle">Biologically-inspired AI with Blockchain & P2P Networking</p>
+            <a href="https://github.com/kritivasas/distributedNN" class="github-link" target="_blank">
+                📚 View on GitHub
+            </a>
+        </div>
+        
+        <div id="demoStatus" class="demo-status">
+            🔄 Loading WASM module...
+        </div>
+        
+        <div class="control-grid">
+            <div class="control-panel">
+                <h3>🤖 Neural Network Setup</h3>
+                <div class="input-group">
+                    <label for="deviceId">Device ID:</label>
+                    <input type="text" id="deviceId" value="" readonly>
+                </div>
+                <div class="input-group">
+                    <label for="nodeCount">Number of Nodes:</label>
+                    <input type="number" id="nodeCount" value="8" min="2" max="20">
+                </div>
+                <button class="btn" onclick="initializeNetwork()">🚀 Initialize Network</button>
+                <button class="btn" onclick="runDemo()">🎮 Run Auto Demo</button>
+            </div>
+            
+            <div class="control-panel">
+                <h3>🧠 Learning & Processing</h3>
+                <div class="input-group">
+                    <label for="inputData">Input Vector:</label>
+                    <input type="text" id="inputData" value="0.5, 0.3, 0.8, 0.2" placeholder="comma-separated values">
+                </div>
+                <div class="input-group">
+                    <label for="errorSignal">Error Signal:</label>
+                    <input type="number" id="errorSignal" value="0.1" step="0.01" min="-1" max="1">
+                </div>
+                <button class="btn" onclick="processInput()">⚡ Process Input</button>
+                <button class="btn" onclick="updateError()">📉 Apply Error</button>
+            </div>
+            
+            <div class="control-panel">
+                <h3>⛓️ Blockchain Operations</h3>
+                <div class="input-group">
+                    <label for="searchVector">Memory Search:</label>
+                    <input type="text" id="searchVector" value="0.2, 0.7, 0.4, 0.6" placeholder="search vector">
+                </div>
+                <button class="btn btn-blockchain" onclick="searchMemory()">🔍 Search Vector DB</button>
+                <button class="btn btn-blockchain" onclick="mineBlock()">⛏️ Mine Block</button>
+                <button class="btn btn-blockchain" onclick="validateBlockchain()">✅ Validate Chain</button>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span id="nodeCount" class="stat-value">0</span>
+                <div class="stat-label">Active Nodes</div>
+            </div>
+            <div class="stat-card">
+                <span id="totalProcessed" class="stat-value">0</span>
+                <div class="stat-label">Inputs Processed</div>
+            </div>
+            <div class="stat-card">
+                <span id="avgOutput" class="stat-value">0.000</span>
+                <div class="stat-label">Avg Output</div>
+            </div>
+            <div class="stat-card blockchain-stat">
+                <span id="accountBalance" class="stat-value">0.00</span>
+                <div class="stat-label">💰 Credits</div>
+            </div>
+            <div class="stat-card blockchain-stat">
+                <span id="totalBlocks" class="stat-value">0</span>
+                <div class="stat-label">⛓️ Blocks</div>
+            </div>
+            <div class="stat-card blockchain-stat">
+                <span id="memoryCapsules" class="stat-value">0</span>
+                <div class="stat-label">📦 Memory Capsules</div>
+            </div>
+        </div>
+        
+        <div id="outputLog" class="output-area">
+            <div class="log-entry log-info">🌐 Welcome to the Distributed Neural Network Live Demo!</div>
+            <div class="log-entry log-info">🔧 This demo runs entirely in your browser using WebAssembly</div>
+            <div class="log-entry log-warning">📡 Note: P2P networking requires the full local setup with signaling server</div>
+        </div>
+        
+        <div class="visualization">
+            <h3>📊 Real-time Visualization</h3>
+            <div class="canvas-container">
+                <div class="canvas-wrapper">
+                    <h4>Network Activity</h4>
+                    <canvas id="activityChart"></canvas>
+                </div>
+                <div class="canvas-wrapper">
+                    <h4>Neural Topology</h4>
+                    <canvas id="topologyChart"></canvas>
+                </div>
+                <div class="canvas-wrapper">
+                    <h4>Blockchain Status</h4>
+                    <canvas id="blockchainChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="features">
+            <div class="feature-card">
+                <h4>🧠 Biologically Inspired</h4>
+                <ul class="feature-list">
+                    <li>Threshold-gating nodes</li>
+                    <li>Forward-only learning</li>
+                    <li>Eligibility traces</li>
+                    <li>Adaptive thresholds</li>
+                    <li>Three-level memory</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>🔒 Privacy-First</h4>
+                <ul class="feature-list">
+                    <li>Data never leaves device</li>
+                    <li>Semantic masking</li>
+                    <li>Encrypted sharing</li>
+                    <li>User-controlled privacy</li>
+                    <li>Local computation</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>⛓️ Blockchain Powered</h4>
+                <ul class="feature-list">
+                    <li>Immutable audit trail</li>
+                    <li>Smart contract incentives</li>
+                    <li>Decentralized storage</li>
+                    <li>Transparent credits</li>
+                    <li>Permanent memory</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>🌐 P2P Networking</h4>
+                <ul class="feature-list">
+                    <li>Real-time node borrowing</li>
+                    <li>Direct memory sharing</li>
+                    <li>Collaborative learning</li>
+                    <li>Error propagation</li>
+                    <li>Dynamic topology</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        let network = null;
+        let activityHistory = [];
+        let totalProcessedInputs = 0;
+        let outputSum = 0;
+        
+        // Generate unique device ID
+        const deviceId = 'demo_' + Math.random().toString(36).substring(2, 15);
+        document.getElementById('deviceId').value = deviceId;
+        
+        // Status management
+        function setStatus(message, type = 'loading') {
+            const statusEl = document.getElementById('demoStatus');
+            statusEl.textContent = message;
+            statusEl.className = `demo-status ${type}`;
+        }
+        
+        // Logging
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('outputLog');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 50 messages
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+        
+        // Update statistics
+        function updateStats() {
+            if (!network) return;
+            
+            try {
+                const state = network.get_cluster_state('main_cluster');
+                if (state) {
+                    document.getElementById('nodeCount').textContent = state.num_nodes || 0;
+                }
+                
+                document.getElementById('totalProcessed').textContent = totalProcessedInputs;
+                document.getElementById('avgOutput').textContent = 
+                    totalProcessedInputs > 0 ? (outputSum / totalProcessedInputs).toFixed(3) : '0.000';
+                
+                const balance = network.get_account_balance();
+                document.getElementById('accountBalance').textContent = balance.toFixed(2);
+                
+                const blockchainStats = network.get_blockchain_stats();
+                if (blockchainStats) {
+                    document.getElementById('totalBlocks').textContent = blockchainStats.total_blocks || 0;
+                    document.getElementById('memoryCapsules').textContent = blockchainStats.total_memory_capsules || 0;
+                }
+                
+                const vectorStats = network.get_vector_database_stats();
+                if (vectorStats) {
+                    document.getElementById('memoryCapsules').textContent = vectorStats.total_vectors || 0;
+                }
+                
+            } catch (error) {
+                console.warn('Error updating stats:', error);
+            }
+        }
+        
+        // Visualization functions
+        function drawActivityChart() {
+            const canvas = document.getElementById('activityChart');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (activityHistory.length < 2) return;
+            
+            // Draw activity line
+            ctx.strokeStyle = '#4ECDC4';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            const maxVal = Math.max(...activityHistory, 1);
+            const minVal = Math.min(...activityHistory, 0);
+            const range = maxVal - minVal || 1;
+            
+            for (let i = 0; i < activityHistory.length; i++) {
+                const x = (i / (activityHistory.length - 1)) * canvas.width;
+                const y = canvas.height - ((activityHistory[i] - minVal) / range) * canvas.height;
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            
+            ctx.stroke();
+            
+            // Draw labels
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.fillText(`Max: ${maxVal.toFixed(3)}`, 10, 20);
+            ctx.fillText(`Min: ${minVal.toFixed(3)}`, 10, canvas.height - 10);
+        }
+        
+        function drawTopologyChart() {
+            const canvas = document.getElementById('topologyChart');
+            const ctx = canvas.getContext('2d');
+            
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!network) return;
+            
+            const nodeCount = parseInt(document.getElementById('nodeCount').value) || 8;
+            
+            // Draw nodes in a circle
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(canvas.width, canvas.height) / 3;
+            
+            const nodes = [];
+            for (let i = 0; i < nodeCount; i++) {
+                const angle = (i / nodeCount) * 2 * Math.PI;
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius;
+                nodes.push({ x, y });
+            }
+            
+            // Draw connections
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < nodeCount; i++) {
+                const next = (i + 1) % nodeCount;
+                ctx.beginPath();
+                ctx.moveTo(nodes[i].x, nodes[i].y);
+                ctx.lineTo(nodes[next].x, nodes[next].y);
+                ctx.stroke();
+                
+                if (i < nodeCount - 2) {
+                    const next2 = (i + 2) % nodeCount;
+                    ctx.beginPath();
+                    ctx.moveTo(nodes[i].x, nodes[i].y);
+                    ctx.lineTo(nodes[next2].x, nodes[next2].y);
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw nodes
+            ctx.fillStyle = '#FFD93D';
+            for (const node of nodes) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 6, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            // Draw center label
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${nodeCount} Nodes`, centerX, centerY);
+        }
+        
+        function drawBlockchainChart() {
+            const canvas = document.getElementById('blockchainChart');
+            const ctx = canvas.getContext('2d');
+            
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!network) return;
+            
+            try {
+                const stats = network.get_blockchain_stats();
+                if (!stats) return;
+                
+                // Draw blocks
+                const blockWidth = 30;
+                const blockHeight = 20;
+                const blockSpacing = 5;
+                const maxBlocks = Math.floor((canvas.width - 40) / (blockWidth + blockSpacing));
+                const blocksToShow = Math.min(stats.total_blocks || 0, maxBlocks);
+                
+                const startX = (canvas.width - (blocksToShow * (blockWidth + blockSpacing))) / 2;
+                const startY = canvas.height / 2 - blockHeight / 2;
+                
+                ctx.fillStyle = '#FFD93D';
+                ctx.strokeStyle = '#FFF';
+                ctx.lineWidth = 1;
+                
+                for (let i = 0; i < blocksToShow; i++) {
+                    const x = startX + i * (blockWidth + blockSpacing);
+                    
+                    // Draw block
+                    ctx.fillRect(x, startY, blockWidth, blockHeight);
+                    ctx.strokeRect(x, startY, blockWidth, blockHeight);
+                    
+                    // Draw connection line
+                    if (i < blocksToShow - 1) {
+                        ctx.beginPath();
+                        ctx.moveTo(x + blockWidth, startY + blockHeight / 2);
+                        ctx.lineTo(x + blockWidth + blockSpacing, startY + blockHeight / 2);
+                        ctx.stroke();
+                    }
+                }
+                
+                // Draw stats
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${stats.total_blocks || 0} Blocks`, canvas.width / 2, startY - 10);
+                ctx.fillText(`${stats.total_transactions || 0} Transactions`, canvas.width / 2, startY + blockHeight + 20);
+                
+            } catch (error) {
+                console.warn('Error drawing blockchain chart:', error);
+            }
+        }
+        
+        // Main functions
+        window.initializeNetwork = function() {
+            const nodeCount = parseInt(document.getElementById('nodeCount').value);
+            
+            try {
+                if (!network) {
+                    // Import and initialize WASM
+                    import('./pkg/distributed_neural_wasm.js').then(module => {
+                        module.default().then(() => {
+                            network = new module.DistributedNeuralNetwork(deviceId);
+                            network.create_cluster('main_cluster', nodeCount);
+                            
+                            setStatus('🟢 Network initialized successfully!', 'ready');
+                            addLog(`🚀 Initialized network with ${nodeCount} nodes`, 'info');
+                            
+                            updateStats();
+                            drawTopologyChart();
+                            drawBlockchainChart();
+                        });
+                    }).catch(error => {
+                        setStatus('❌ Failed to load WASM module', 'error');
+                        addLog(`Error: ${error.message}`, 'error');
+                    });
+                } else {
+                    network.create_cluster('main_cluster', nodeCount);
+                    addLog(`🔄 Recreated cluster with ${nodeCount} nodes`, 'info');
+                    updateStats();
+                    drawTopologyChart();
+                }
+            } catch (error) {
+                addLog(`Error initializing network: ${error}`, 'error');
+            }
+        };
+        
+        window.processInput = function() {
+            if (!network) {
+                addLog('❌ Please initialize the network first', 'error');
+                return;
+            }
+            
+            const inputStr = document.getElementById('inputData').value;
+            const inputData = inputStr.split(',').map(x => parseFloat(x.trim()));
+            
+            try {
+                const outputs = network.process_input('main_cluster', inputData);
+                const avgOutput = outputs.reduce((sum, val) => sum + val, 0) / outputs.length;
+                
+                activityHistory.push(avgOutput);
+                if (activityHistory.length > 50) {
+                    activityHistory.shift();
+                }
+                
+                totalProcessedInputs++;
+                outputSum += avgOutput;
+                
+                addLog(`⚡ Processed: [${inputData.join(', ')}] → avg: ${avgOutput.toFixed(4)}`, 'info');
+                
+                updateStats();
+                drawActivityChart();
+                drawTopologyChart();
+                
+            } catch (error) {
+                addLog(`Error processing input: ${error}`, 'error');
+            }
+        };
+        
+        window.updateError = function() {
+            if (!network) {
+                addLog('❌ Please initialize the network first', 'error');
+                return;
+            }
+            
+            const error = parseFloat(document.getElementById('errorSignal').value);
+            
+            try {
+                network.update_error_signal('main_cluster', error);
+                addLog(`📉 Applied error signal: ${error}`, 'info');
+                updateStats();
+            } catch (err) {
+                addLog(`Error updating error: ${err}`, 'error');
+            }
+        };
+        
+        window.searchMemory = function() {
+            if (!network) {
+                addLog('❌ Please initialize the network first', 'error');
+                return;
+            }
+            
+            const searchStr = document.getElementById('searchVector').value;
+            const searchVector = searchStr.split(',').map(x => parseFloat(x.trim()));
+            
+            try {
+                const results = network.semantic_memory_search(searchVector, 'learning,adaptation', 5);
+                addLog(`🔍 Memory search completed: ${results ? 'Found results' : 'No results'}`, 'blockchain');
+                updateStats();
+            } catch (error) {
+                addLog(`Error searching memory: ${error}`, 'error');
+            }
+        };
+        
+        window.mineBlock = function() {
+            if (!network) {
+                addLog('❌ Please initialize the network first', 'error');
+                return;
+            }
+            
+            try {
+                const blockHash = network.mine_block();
+                if (blockHash) {
+                    addLog(`⛏️ Mined block: ${blockHash.substring(0, 8)}...`, 'blockchain');
+                } else {
+                    addLog(`ℹ️ No transactions to mine`, 'warning');
+                }
+                updateStats();
+                drawBlockchainChart();
+            } catch (error) {
+                addLog(`Error mining block: ${error}`, 'error');
+            }
+        };
+        
+        window.validateBlockchain = function() {
+            if (!network) {
+                addLog('❌ Please initialize the network first', 'error');
+                return;
+            }
+            
+            try {
+                const isValid = network.validate_blockchain();
+                addLog(`✅ Blockchain validation: ${isValid ? 'PASSED' : 'FAILED'}`, 'blockchain');
+            } catch (error) {
+                addLog(`Error validating blockchain: ${error}`, 'error');
+            }
+        };
+        
+        window.runDemo = function() {
+            if (!network) {
+                initializeNetwork();
+                setTimeout(runDemo, 2000);
+                return;
+            }
+            
+            addLog('🎮 Starting automated demo...', 'info');
+            
+            let step = 0;
+            const demoSteps = [
+                () => {
+                    document.getElementById('inputData').value = '0.1, 0.9, 0.3, 0.7';
+                    processInput();
+                },
+                () => {
+                    document.getElementById('errorSignal').value = '0.05';
+                    updateError();
+                },
+                () => {
+                    document.getElementById('inputData').value = '0.8, 0.2, 0.6, 0.4';
+                    processInput();
+                },
+                () => {
+                    mineBlock();
+                },
+                () => {
+                    document.getElementById('searchVector').value = '0.5, 0.5, 0.5, 0.5';
+                    searchMemory();
+                },
+                () => {
+                    document.getElementById('inputData').value = '0.3, 0.1, 0.9, 0.8';
+                    processInput();
+                },
+                () => {
+                    validateBlockchain();
+                },
+                () => {
+                    addLog('🎉 Demo completed! Try your own inputs.', 'info');
+                }
+            ];
+            
+            function runNextStep() {
+                if (step < demoSteps.length) {
+                    demoSteps[step]();
+                    step++;
+                    setTimeout(runNextStep, 1500);
+                }
+            }
+            
+            runNextStep();
+        };
+        
+        // Auto-initialize and redraw charts on window resize
+        window.addEventListener('resize', () => {
+            setTimeout(() => {
+                drawActivityChart();
+                drawTopologyChart();
+                drawBlockchainChart();
+            }, 100);
+        });
+        
+        // Initialize demo on load
+        document.addEventListener('DOMContentLoaded', () => {
+            setStatus('🔄 Loading WASM module...', 'loading');
+            addLog('🌐 Demo loaded! Click "Initialize Network" to start.', 'info');
+            addLog('💡 Or click "Run Auto Demo" for a guided tour.', 'info');
+        });
+    </script>
+</body>
+</html> 

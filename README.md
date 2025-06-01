@@ -2,6 +2,22 @@
 
 A revolutionary distributed neural network implementation that combines **biological plausibility**, **privacy-first design**, **blockchain permanence**, and **true peer-to-peer networking**.
 
+## 🎮 **Live Demo - Try It Now!**
+
+### **🌐 [Launch Live Demo](https://kritivasas.github.io/distributedNN)**
+
+**No installation required!** The demo runs entirely in your browser using WebAssembly.
+
+**Features in the live demo:**
+- ✅ **Real neural network** with threshold-gating nodes
+- ✅ **Blockchain operations** (mining, validation, transactions)
+- ✅ **Vector database** semantic memory search
+- ✅ **Real-time visualization** of network activity
+- ✅ **Interactive controls** for inputs, errors, and parameters
+- ✅ **Guided auto-demo** for newcomers
+
+*Note: The full P2P networking requires local setup with the signaling server. See the [P2P Deployment Guide](P2P_DEPLOYMENT_GUIDE.md) for complete setup.*
+
 ## 🌟 **New Feature: Real P2P Discovery Beyond Local Network!**
 
 Your distributed neural network now supports **real peer discovery** across the internet using:
@@ -315,8 +331,9 @@ CMD ["node", "signaling-server.js"]
 
 ## 📚 **Resources**
 
+- **[🎮 Live Demo](https://kritivasas.github.io/distributedNN)** - Try it in your browser!
 - **[P2P Deployment Guide](P2P_DEPLOYMENT_GUIDE.md)** - Detailed setup instructions
-- **[Research Paper](researchPaper.tex)** - Theoretical foundation
+- **[Research Paper](researchPaper.pdf)** - Theoretical foundation
 - **[Live Demo](demo.html)** - Interactive interface
 - **[API Documentation](#)** - Complete API reference
 
