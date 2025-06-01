@@ -361,6 +361,12 @@ impl DeviceCluster {
     }
 }
 
+impl DeviceCluster {
+    pub fn get_latest_memory_capsule(&self) -> Option<crate::memory::MemoryCapsule> {
+        self.cluster_memory.get_latest_capsule()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClusterState {
     pub cluster_id: String,

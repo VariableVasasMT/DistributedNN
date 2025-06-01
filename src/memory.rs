@@ -1,7 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use std::collections::{HashMap, VecDeque};
-use web_sys::console;
 
 /// Three-level memory hierarchy as described in the paper
 /// Level 1: Node Memory - local to each threshold gating node
@@ -256,6 +255,10 @@ impl ClusterMemory {
             .take(num_results)
             .map(|(_, id)| id)
             .collect()
+    }
+
+    pub fn get_latest_capsule(&self) -> Option<MemoryCapsule> {
+        self.capsule_buffer.back().cloned()
     }
 }
 
