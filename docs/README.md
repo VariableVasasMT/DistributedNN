@@ -4,7 +4,7 @@ This directory contains the GitHub Pages deployment files for the Distributed Ne
 
 ## 🎮 Access the Demo
 
-**[👉 Launch Live Demo](https://kritivasas.github.io/distributedNN)**
+**[👉 Launch Live Demo](https://variablevasasmt.github.io/DistributedNN/)**
 
 ## 📁 Directory Structure
 
