@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.1.15)  31 MAY 2025 21:36
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.1.15)  31 MAY 2025 21:48
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -465,22 +465,7 @@ File: l3backend-pdftex.def 2024-02-20 L3 backend support: PDF output (pdfTeX)
 \l__pdf_internal_box=\box65
 ) (./researchPaper.aux
 
-LaTeX Warning: Label `Gerstner2018' multiply defined.
-
-
-LaTeX Warning: Label `Pozzorini2013' multiply defined.
-
-
-LaTeX Warning: Label `Fusi2005' multiply defined.
-
-
-LaTeX Warning: Label `Lisman2020' multiply defined.
-
-
-LaTeX Warning: Label `Sara2009' multiply defined.
-
-
-LaTeX Warning: Label `Gerstner2018' multiply defined.
+LaTeX Warning: Label `fig:threshold-gating-node' multiply defined.
 
 )
 \openout1 = `researchPaper.aux'.
@@ -577,88 +562,52 @@ Overfull \hbox (12.01518pt too wide) in paragraph at lines 52--53
  []
 
 [2]
-<architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png, id=171, 1541.76pt x 1027.84pt>
+<architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png, id=191, 1541.76pt x 1027.84pt>
 File: architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png Graphic file (type png)
 <use architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png>
-Package pdftex.def Info: architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png  used on input line 71.
+Package pdftex.def Info: architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png  used on input line 82.
 (pdftex.def)             Requested size: 328.82707pt x 219.20905pt.
- [3 <./architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png (PNG copy)>]
-<architecture_diagrams/memory.png, id=182, 1027.84pt x 1541.76pt>
+ [3] [4 <./architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png (PNG copy)>]
+File: architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png Graphic file (type png)
+<use architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png>
+Package pdftex.def Info: architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png  used on input line 128.
+(pdftex.def)             Requested size: 328.82707pt x 219.20905pt.
+<architecture_diagrams/memory.png, id=217, 1027.84pt x 1541.76pt>
 File: architecture_diagrams/memory.png Graphic file (type png)
 <use architecture_diagrams/memory.png>
-Package pdftex.def Info: architecture_diagrams/memory.png  used on input line 109.
+Package pdftex.def Info: architecture_diagrams/memory.png  used on input line 166.
 (pdftex.def)             Requested size: 234.8775pt x 352.31538pt.
- [4]
-<architecture_diagrams/node-borrowing.png, id=199, 1027.84pt x 1541.76pt>
+ [5] [6 <./architecture_diagrams/memory.png (PNG copy)>]
+<architecture_diagrams/node-borrowing.png, id=234, 1027.84pt x 1541.76pt>
 File: architecture_diagrams/node-borrowing.png Graphic file (type png)
 <use architecture_diagrams/node-borrowing.png>
-Package pdftex.def Info: architecture_diagrams/node-borrowing.png  used on input line 132.
+Package pdftex.def Info: architecture_diagrams/node-borrowing.png  used on input line 189.
 (pdftex.def)             Requested size: 234.8775pt x 352.31538pt.
- [5 <./architecture_diagrams/memory.png (PNG copy)>] [6 <./architecture_diagrams/node-borrowing.png (PNG copy)>]
-<architecture_diagrams/flowchart-credit-assignment.png, id=210, 1027.84pt x 1541.76pt>
+ [7] [8 <./architecture_diagrams/node-borrowing.png (PNG copy)>]
+<architecture_diagrams/flowchart-credit-assignment.png, id=246, 1027.84pt x 1541.76pt>
 File: architecture_diagrams/flowchart-credit-assignment.png Graphic file (type png)
 <use architecture_diagrams/flowchart-credit-assignment.png>
-Package pdftex.def Info: architecture_diagrams/flowchart-credit-assignment.png  used on input line 166.
+Package pdftex.def Info: architecture_diagrams/flowchart-credit-assignment.png  used on input line 223.
 (pdftex.def)             Requested size: 248.96957pt x 373.44113pt.
- [7] [8 <./architecture_diagrams/flowchart-credit-assignment.png (PNG copy)>] [9]
-<architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png, id=256, 1541.76pt x 1027.84pt>
+ [9 <./architecture_diagrams/flowchart-credit-assignment.png (PNG copy)>] [10] [11]
+<architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png, id=297, 1541.76pt x 1027.84pt>
 File: architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png Graphic file (type png)
 <use architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png>
-Package pdftex.def Info: architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png  used on input line 233.
+Package pdftex.def Info: architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png  used on input line 290.
 (pdftex.def)             Requested size: 357.01123pt x 237.99794pt.
-<architecture_diagrams/48db0a56-63a0-40ef-9322-787cc6e465d9.png, id=257, 1541.76pt x 1027.84pt>
-File: architecture_diagrams/48db0a56-63a0-40ef-9322-787cc6e465d9.png Graphic file (type png)
-<use architecture_diagrams/48db0a56-63a0-40ef-9322-787cc6e465d9.png>
-Package pdftex.def Info: architecture_diagrams/48db0a56-63a0-40ef-9322-787cc6e465d9.png  used on input line 243.
-(pdftex.def)             Requested size: 319.42996pt x 212.95131pt.
- [10]
-<architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png, id=274, 1541.76pt x 1027.84pt>
+ [12 <./architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png (PNG copy)>]
+<architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png, id=309, 1541.76pt x 1027.84pt>
 File: architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png Graphic file (type png)
 <use architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png>
-Package pdftex.def Info: architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png  used on input line 268.
+Package pdftex.def Info: architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png  used on input line 311.
 (pdftex.def)             Requested size: 295.94795pt x 197.29912pt.
- [11 <./architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png (PNG copy)>]
-Overfull \hbox (4.4718pt too wide) in paragraph at lines 288--289
-\OT1/cmr/m/n/10.95 learn-ing|combining lo-cal adap-ta-tion, elas-tic topol-ogy, se-cure mem-ory man-age-ment, and blockchain-
- []
-
-[12 <./architecture_diagrams/48db0a56-63a0-40ef-9322-787cc6e465d9.png (PNG copy)>]
-<architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png, id=285, 1541.76pt x 1027.84pt>
+ [13 <./architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png (PNG copy)>]
+<architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png, id=317, 1541.76pt x 1027.84pt>
 File: architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png Graphic file (type png)
 <use architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png>
-Package pdftex.def Info: architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png  used on input line 301.
+Package pdftex.def Info: architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png  used on input line 345.
 (pdftex.def)             Requested size: 281.85587pt x 187.88899pt.
- [13 <./architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png (PNG copy)>] [14 <./architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png (PNG copy)>] [15] [16] [17]
-pdfTeX warning (ext4): destination with the same identifier (name{cite.Gerstner2018}) has been already used, duplicate ignored
-<to be read again> 
-                   \relax 
-l.454 \bibitem{Gerstner2018}
-                            
-pdfTeX warning (ext4): destination with the same identifier (name{cite.Pozzorini2013}) has been already used, duplicate ignored
-<to be read again> 
-                   \relax 
-l.459 \bibitem{Pozzorini2013}
-                             
-pdfTeX warning (ext4): destination with the same identifier (name{cite.Fusi2005}) has been already used, duplicate ignored
-<to be read again> 
-                   \relax 
-l.464 \bibitem{Fusi2005}
-                        
-pdfTeX warning (ext4): destination with the same identifier (name{cite.Lisman2020}) has been already used, duplicate ignored
-<to be read again> 
-                   \relax 
-l.469 \bibitem{Lisman2020}
-                          
-pdfTeX warning (ext4): destination with the same identifier (name{cite.Sara2009}) has been already used, duplicate ignored
-<to be read again> 
-                   \relax 
-l.474 \bibitem{Sara2009}
-                        
-pdfTeX warning (ext4): destination with the same identifier (name{cite.Gerstner2018}) has been already used, duplicate ignored
-<to be read again> 
-                   \relax 
-l.494 \bibitem{Gerstner2018}
-                             [18] [19] (./researchPaper.aux)
+ [14 <./architecture_diagrams/37f16f0b-ac7a-44b5-8a94-e48c92587896.png (PNG copy)>] [15] [16] [17] [18] [19] (./researchPaper.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-02-20>
@@ -668,21 +617,21 @@ L3 programming layer <2024-02-20>
 LaTeX Warning: There were multiply-defined labels.
 
 Package rerunfilecheck Info: File `researchPaper.out' has not changed.
-(rerunfilecheck)             Checksum: 699D2990F6BF2C4E73541FC795ACAF32;6457.
+(rerunfilecheck)             Checksum: 749F45E7F85F99AB04D83714352E8C7B;7717.
  ) 
 Here is how much of TeX's memory you used:
- 22192 strings out of 474116
- 427056 string characters out of 5743682
- 1940187 words of memory out of 5000000
- 44085 multiletter control sequences out of 15000+600000
+ 22200 strings out of 474116
+ 426735 string characters out of 5743682
+ 1938187 words of memory out of 5000000
+ 44082 multiletter control sequences out of 15000+600000
  567733 words of font info for 72 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 84i,16n,93p,907b,565s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 84i,16n,93p,907b,562s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfrm1095.pfb>
-Output written on researchPaper.pdf (19 pages, 11328554 bytes).
+Output written on researchPaper.pdf (19 pages, 10138700 bytes).
 PDF statistics:
- 407 PDF objects out of 1000 (max. 8388607)
- 348 compressed objects within 4 object streams
- 108 named destinations out of 1000 (max. 500000)
- 285 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 435 PDF objects out of 1000 (max. 8388607)
+ 377 compressed objects within 4 object streams
+ 119 named destinations out of 1000 (max. 500000)
+ 320 words of extra memory for PDF output out of 10000 (max. 10000000)
 

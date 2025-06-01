@@ -56,6 +56,63 @@ Multi-modal learning and hierarchical memory architectures have been explored in
 
 \section{Methods}
 
+\subsection{Threshold Gating Node: Local Dynamics}
+
+The core of our architecture is the \emph{threshold gating node}. Each node accumulates incoming signals in an internal buffer, fires when either an adaptive threshold $\delta$ or a timer $T$ is reached, and adapts via a local eligibility trace and error signal. This enables fully forward-only local learning and dynamic temporal plasticity.
+
+\begin{itemize}
+    \item \textbf{Accumulator:} Sums incoming activations since last firing.
+    \item \textbf{Adaptive Threshold $\delta$:} Determines when to fire based on local activity and error.
+    \item \textbf{Timer $T$:} Forces node firing after a set period, ensuring event-driven and time-driven learning.
+    \item \textbf{Eligibility Trace:} Temporally decaying marker for credit assignment.
+    \item \textbf{Local Error Input:} Used to modulate threshold and adaptation rate (no global backprop).
+\end{itemize}
+
+\begin{align}
+\Delta \delta =
+\begin{cases}
++\,\eta_{\delta}, & \text{if fired by threshold} \\
+-\,\frac{1}{2}\eta_{\delta}, & \text{if forced by timer}
+\end{cases}
+\end{align}
+where $\eta_{\delta}$ is the adaptation rate, updated by error: $\eta_{\delta} \leftarrow \eta_{\delta} + \alpha \cdot \text{errorInput}$.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.7\textwidth]{architecture_diagrams/1fe38644-c569-4658-b345-f5d0ddced01b.png}
+    \caption{
+        Schematic of a threshold gating node. The node sums inputs, fires if threshold/timer is met, updates eligibility trace, and adapts threshold based on forward-only error. Local memory stores all parameters.
+    }
+    \label{fig:threshold-gating-node}
+\end{figure}
+
+\subsection{Three-Level Memory Mechanism}
+
+Each node, cluster, and device maintains a local memory buffer, aggregates adaptation statistics, and produces compressed “memory capsules.”  
+- \textbf{Node:} Stores recent activations, errors, eligibility, timers, tags.  
+- \textbf{Cluster:} Aggregates node outputs, computes local statistics, forms memory capsules with tagging and semantic masking.
+- \textbf{Device:} Consolidates, compresses, and encrypts capsules for upload.
+
+\subsection{Node Borrowing Protocol (Algorithm)}
+
+When a device or cluster borrows a node:
+\begin{enumerate}
+    \item \textbf{Discovery:} Search blockchain/index for eligible node packets (by context, tags).
+    \item \textbf{Permission:} Check privacy tag and access control (only behavioral, not personal, nodes shared).
+    \item \textbf{Incentive:} Smart contract debits credits for borrowing.
+    \item \textbf{Transfer:} Packet securely transmitted and instantiated locally.
+    \item \textbf{Snapshot:} After use, new state is snapshotted, signed, uploaded for audit and possible respawn.
+\end{enumerate}
+
+\subsection{Error Propagation and Credit Assignment (Mechanism)}
+
+Error signals are propagated forward only:
+\begin{itemize}
+    \item Local error, task loss, or global modulatory signals are fed to nodes.
+    \item Eligibility traces assign temporal credit to prior events.
+    \item Capsule tagging registers significant events and updates on-chain for credit and audit.
+\end{itemize}
+
 \subsection{Threshold Gating Node and Local Adaptation}
 The core component of our architecture is the \emph{threshold gating node}. Each node maintains:
 \begin{itemize}
@@ -232,60 +289,47 @@ These neuroscience principles underpin our system’s approach to local and glob
     \centering
     \includegraphics[width=0.76\linewidth]{architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png}
     \caption{
-        High-level overview of the distributed, forward-only threshold-gating neural architecture. Each user device operates as a privacy-preserving, adaptive cluster that contributes to and synchronizes with a blockchain-backed, globally coordinated network.
+        High-level overview of the distributed, forward-only neural architecture. Each user device is a privacy-preserving cluster; clusters interact via blockchain for coordination, storage, and incentives.
     }
     \label{fig:high-level-architecture}
 \end{figure}
 
-\subsection{Device-Level Forward-Only Neural Networks}
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.68\linewidth]{architecture_diagrams/48db0a56-63a0-40ef-9322-787cc6e465d9.png}
-    \caption{
-        Internal architecture of a threshold-gating node and its memory components. The node accumulates local inputs, updates eligibility traces and timers, and adapts its firing threshold (\(\delta\)) based on forward-fed error signals and activity tags.
-    }
-    \label{fig:node-internal-architecture}
-\end{figure}
+\subsection{Device-Level Clusters}
 
-Each user device hosts a dynamically sized cluster of threshold-gating nodes, collectively implementing a fully forward-only learning system. The core architectural elements are:
+Each device runs a cluster of threshold-gating nodes. All raw data and low-level adaptation remain on-device.
 
 \begin{itemize}
-    \item \textbf{Threshold-Gating Node:} Each node accumulates local input signals and fires when its adaptive threshold (\(\delta\)) or timer is reached. Node-local memory maintains eligibility traces, timers, activity tags, synaptic weights, and statistics for both recent and salient events.
-
-    \item \textbf{Forward-Only Error Propagation:} Upon firing, the node receives a strictly forward-fed error or modulatory signal—never requiring global backpropagation. The error signal may be locally computed (task loss), aggregated from the cluster, or broadcast by global modulatory nodes. Adaptation of the node’s threshold and timer is a function of the error, current eligibility trace, and activity history.
-
-    \item \textbf{Cluster Memory and Local Adaptation:} Node outputs and adaptation statistics are shared within a cluster-wide buffer. This enables local error evaluation, modular specialization, dynamic memory tagging, and computation of “memory capsules” for potential long-term storage.
-
-    \item \textbf{Dynamic Topology Management:} Network topology is elastic: nodes and edges are dynamically split or duplicated when their usage exceeds local or global thresholds, allowing for specialization and increased bandwidth. Conversely, underutilized nodes and edges are pruned to conserve resources. Splitting, duplication, and pruning thresholds increase adaptively as network complexity grows, preventing runaway expansion.
-
-    \item \textbf{Node Borrowing and Packetization:} Clusters may borrow node packets (including memory, adaptation state, and activity tags) from other devices. The borrowing protocol ensures that only behavioral memory is shared (not personal/private), credit incentives are properly allocated, and post-borrowing snapshots are recorded and auditable on the blockchain. After borrowing, the node’s updated state is also snapshotted, cryptographically signed, and logged for audit and future respawning.
+    \item \textbf{Threshold-Gating Node:} Local event-driven unit, as detailed in Methods.
+    \item \textbf{Cluster Memory:} Aggregates local node statistics, manages adaptation and specialization, prepares memory capsules for upload.
+    \item \textbf{Dynamic Topology:} Nodes and edges split/merge based on usage, supporting modular specialization and bandwidth scaling.
 \end{itemize}
 
-\subsection{Privacy and Local Adaptation}
+\subsection{Hierarchical Memory and Blockchain Integration}
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.63\linewidth]{architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png}
     \caption{
-        Detailed overview of hierarchical memory management, including local node memory, cluster memory capsules, personal/behavioral tagging, semantic masking, and blockchain-indexed global memory. All raw data remains on-device; only encrypted, context-tagged summaries are exported.
+        Hierarchical memory management: local node memory, cluster memory capsules, semantic masking, and blockchain-indexed global memory. Only encrypted, context-tagged summaries leave the device.
     }
     \label{fig:overview-mem-management}
 \end{figure}
 
-A core design principle is \textbf{privacy by default}. All raw user data (input, sensor streams, context) is processed strictly on-device. Only derived, summary statistics, error signals, and encrypted “memory capsules” are shared for network-wide learning or adaptation.
-
 \begin{itemize}
-    \item \textbf{Semantic Masking and User Control:} Before any summary or capsule is exported, sensitive data fields (e.g., names, locations) are automatically detected and masked at the semantic level (e.g., replaced with tags such as \texttt{[PERSON NAME]} or \texttt{[LOCATION]}). Users may review or request additional masking as desired.
-
-    \item \textbf{Memory Capsule Generation and Tagging:} Clusters periodically compress, encrypt, and tag key adaptation statistics, eligibility traces, and local context as “memory capsules.” Tagging leverages high-dimensional vector embeddings, context hashes, or interpretable semantic labels to enable rapid, context-driven search and retrieval.
-
-    \item \textbf{Global Coordination, Storage, and Audit:} Memory capsules are uploaded to decentralized storage (e.g., IPFS, Filecoin) and indexed on a blockchain ledger with their semantic tags, cryptographic hashes, and access control metadata. The ledger records all capsule events (creation, update, borrowing, respawning) and enforces credit allocation and permissioning via smart contracts.
-
-    \item \textbf{Rapid Memory Recall and Resilience:} When a device or cluster requires relevant long-term knowledge, it queries the blockchain-backed index for capsules with similar context tags. Only authorized nodes may decrypt and integrate this information, preserving both security and efficiency. Devices that drop out or rejoin can quickly resynchronize by retrieving the most recent, relevant capsules.
+    \item \textbf{Semantic Masking/User Control:} Automated masking of sensitive fields, with user review.
+    \item \textbf{Capsule Upload and Tagging:} Capsules encrypted, tagged, and stored on decentralized storage; indexed and auditable via blockchain.
+    \item \textbf{Memory Recall and Resilience:} Devices query blockchain-indexed vector database for relevant capsules; can resync after dropout.
 \end{itemize}
 
-\paragraph{Summary:}
-This architecture enables robust, privacy-preserving, and fully auditable distributed learning—combining local adaptation, elastic topology, secure memory management, and blockchain-based incentives for scalable, lifelong AI.
+\subsection{Incentive System and Auditability}
+
+\begin{itemize}
+    \item \textbf{Smart Contracts:} Automate incentive allocation, permissions, credit assignment.
+    \item \textbf{Auditability:} All uploads, borrowings, updates, and incentives are logged immutably.
+\end{itemize}
+
+\paragraph{Summary:}  
+This architecture combines biologically inspired learning, privacy-preserving local adaptation, and blockchain-based incentives and memory for scalable, distributed, and lifelong AI.
 
 
 \section{Detailed Memory, Temporal Plasticity, and Network Growth}
@@ -401,12 +445,8 @@ We have introduced a distributed, modular, forward-only neural network architect
 
 \bibliographystyle{plain}
 \begin{thebibliography}{99}
-\bibitem{Lisman2020} Lisman, J. (2020). Memory formation and error signals in hippocampus. \emph{Trends in Cognitive Sciences}, 24(8), 678-689.
-\bibitem{Sara2009} Sara, S. J. (2009). The locus coeruleus and noradrenergic modulation of memory. \emph{Nature Reviews Neuroscience}, 10(3), 211-223.
 \bibitem{Doya2000} Doya, K. (2000). Complementary roles of basal ganglia and cerebellum in learning and motor control. \emph{Current Opinion in Neurobiology}, 10(6), 732-739.
-\bibitem{Gerstner2018} Gerstner, W., Lehmann, M., Liakoni, V., Corneil, D., Brea, J. (2018). Eligibility traces and plasticity on behavioral time scales: Experimental support of neohebbian three-factor learning rules. \emph{Frontiers in Neural Circuits}, 12, 53.
 \bibitem{Yagishita2014} Yagishita, S., et al. (2014). A critical time window for dopamine actions on the structural plasticity of dendritic spines. \emph{Science}, 345(6204), 1616-1620.
-\bibitem{Pozzorini2013} Pozzorini, C., Naud, R., Mensi, S.,Gerstner, W. (2013). Temporal whitening by power-law adaptation in neocortical neurons. \emph{Nature Neuroscience}, 16(7), 942-948.
 \bibitem{Fusi2005} Fusi, S., Drew, P. J.,Abbott, L. F. (2005). Cascade models of synaptically stored memories. \emph{Neuron}, 45(4), 599-611.
 \bibitem{Holtmaat2009} Holtmaat, A.,Svoboda, K. (2009). Experience-dependent structural synaptic plasticity in the mammalian brain. \emph{Nature Reviews Neuroscience}, 10(9), 647-658.
 \bibitem{Perin2011} Perin, R., Berger, T. K.,Markram, H. (2011). A synaptic organizing principle for cortical neuronal groups. \emph{Proceedings of the National Academy of Sciences}, 108(13), 5419-5424.
@@ -461,11 +501,6 @@ C.~Pozzorini, R.~Naud, S.~Mensi, and W.~Gerstner.
 \newblock Temporal whitening by power-law adaptation in neocortical neurons.
 \newblock \emph{Nature Neuroscience}, 16(7):942--948, 2013.
 
-\bibitem{Fusi2005}
-S.~Fusi, P.J.~Drew, and L.F.~Abbott.
-\newblock Cascade models of synaptically stored memories.
-\newblock \emph{Neuron}, 45(4):599--611, 2005.
-
 \bibitem{Lisman2020}
 J.~Lisman.
 \newblock Memory formation and error signals in hippocampus.
@@ -490,11 +525,6 @@ K.~Christidis and M.~Devetsikiotis.
 G.~Zyskind, O.~Nathan, and A.~Pentland.
 \newblock Decentralizing privacy: Using blockchain to protect personal data.
 \newblock In \emph{2015 IEEE Security and Privacy Workshops}, pages 180--184, 2015.
-
-\bibitem{Gerstner2018}
-W.~Gerstner, M.~Lehmann, V.~Liakoni, D.~Corneil, and J.~Brea.
-\newblock Eligibility traces and plasticity on behavioral time scales: Experimental support of neohebbian three-factor learning rules.
-\newblock \emph{Frontiers in Neural Circuits}, 12:53, 2018.
 
 \bibitem{Frey1997}
 U.~Frey and R.G.M.~Morris.
