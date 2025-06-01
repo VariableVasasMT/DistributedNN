@@ -7,6 +7,7 @@ mod cluster;
 mod utils;
 mod blockchain;
 mod vector_db;
+mod p2p_network;
 
 pub use threshold_node::*;
 pub use memory::*;
@@ -14,6 +15,7 @@ pub use cluster::*;
 pub use utils::*;
 pub use blockchain::*;
 pub use vector_db::*;
+pub use p2p_network::*;
 
 // Re-export key types for JavaScript
 #[wasm_bindgen]
@@ -41,6 +43,7 @@ pub struct DistributedNeuralNetwork {
     global_memory: GlobalMemory,
     blockchain: BlockchainLedger,
     vector_database: VectorMemoryDatabase, // Long-term memory blockchain vector database
+    p2p_network: P2PNetwork, // Direct peer-to-peer networking
     device_id: String,
 }
 
@@ -59,6 +62,7 @@ impl DistributedNeuralNetwork {
             global_memory: GlobalMemory::new(),
             blockchain,
             vector_database: VectorMemoryDatabase::new(),
+            p2p_network: P2PNetwork::new(device_id.clone()),
             device_id,
         }
     }
@@ -146,15 +150,80 @@ impl DistributedNeuralNetwork {
         }
     }
 
+    // === P2P NETWORKING METHODS ===
+
+    #[wasm_bindgen]
+    pub fn start_peer_discovery(&mut self) -> bool {
+        console_log!("Starting P2P peer discovery for device: {}", self.device_id);
+        self.p2p_network.start_discovery()
+    }
+
+    #[wasm_bindgen]
+    pub fn connect_to_peer(&mut self, peer_id: String, connection_info: &str) -> bool {
+        console_log!("Connecting to peer: {}", peer_id);
+        self.p2p_network.connect_to_peer(peer_id, connection_info)
+    }
+
+    #[wasm_bindgen]
+    pub fn request_node_from_peer(&mut self, peer_id: String, node_type: String, duration_minutes: u32) -> String {
+        console_log!("Requesting node from peer via P2P: {}", peer_id);
+        self.p2p_network.request_node_direct(peer_id, node_type, duration_minutes)
+    }
+
+    #[wasm_bindgen]
+    pub fn share_memory_with_peer(&mut self, peer_id: String, cluster_id: String) -> bool {
+        console_log!("Sharing memory directly with peer: {}", peer_id);
+        
+        if let Some(cluster) = self.clusters.get(&cluster_id) {
+            if let Some(capsule) = cluster.get_latest_memory_capsule() {
+                let capsule_json = serde_json::to_string(&capsule).unwrap_or_default();
+                return self.p2p_network.share_memory_direct(peer_id, &capsule_json);
+            }
+        }
+        false
+    }
+
+    #[wasm_bindgen]
+    pub fn start_collaborative_learning(&mut self, peer_ids: Vec<String>, task_description: String) -> String {
+        console_log!("Starting collaborative learning session with {} peers", peer_ids.len());
+        self.p2p_network.initiate_collaborative_learning(peer_ids, task_description)
+    }
+
+    #[wasm_bindgen]
+    pub fn propagate_error_to_peers(&mut self, cluster_id: String, urgency: u8) -> u32 {
+        console_log!("Propagating error signal to connected peers");
+        
+        if let Some(_cluster) = self.clusters.get(&cluster_id) {
+            // Get raw cluster state for error propagation
+            let error_vector = vec![0.5]; // Simplified - in real implementation would extract actual error
+            return self.p2p_network.propagate_error_signal(error_vector, urgency);
+        }
+        0
+    }
+
+    #[wasm_bindgen]
+    pub fn process_p2p_messages(&mut self) -> u32 {
+        self.p2p_network.process_incoming_messages()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_p2p_network_stats(&self) -> JsValue {
+        self.p2p_network.get_network_stats()
+    }
+
     #[wasm_bindgen]
     pub fn step_simulation(&mut self, delta_time: f64) {
         for cluster in self.clusters.values_mut() {
             cluster.step(delta_time);
         }
         
+        // Process P2P messages
+        self.process_p2p_messages();
+        
         // Periodically mine blocks to commit transactions
         static mut LAST_MINING_TIME: f64 = 0.0;
         static mut LAST_CONSOLIDATION_TIME: f64 = 0.0;
+        static mut LAST_P2P_DISCOVERY_TIME: f64 = 0.0;
         let current_time = js_sys::Date::now();
         
         unsafe {
@@ -171,6 +240,12 @@ impl DistributedNeuralNetwork {
             if current_time - LAST_CONSOLIDATION_TIME > 300000.0 {
                 self.consolidate_long_term_memory();
                 LAST_CONSOLIDATION_TIME = current_time;
+            }
+
+            // Peer discovery every 2 minutes
+            if current_time - LAST_P2P_DISCOVERY_TIME > 120000.0 {
+                self.start_peer_discovery();
+                LAST_P2P_DISCOVERY_TIME = current_time;
             }
         }
     }

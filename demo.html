@@ -217,6 +217,9 @@
                 grid-template-columns: 1fr;
             }
         }
+        
+        .log-p2p { color: #00BCD4; }
+        .log-p2p::before { content: "🌐 "; }
     </style>
 </head>
 <body>
@@ -268,6 +271,33 @@
                 <button id="mineBlock" class="blockchain-button">⛏️ Mine Block</button>
                 <button id="validateChain" class="blockchain-button">✅ Validate Chain</button>
             </div>
+
+            <div class="control-section">
+                <h3>🌐 P2P Networking</h3>
+                <div class="control-row">
+                    <button id="startDiscovery" class="btn btn-secondary">Start Peer Discovery</button>
+                    <button id="connectPeer" class="btn btn-secondary">Connect to Peer</button>
+                    <input type="text" id="peerConnectionInfo" placeholder='{"device_id":"peer1","ip_address":"192.168.1.100","port":8080,"public_key":"key","capabilities":["memory_sharing"],"reputation_score":1.0,"last_seen":0,"cluster_specializations":["general"]}' style="width: 400px;">
+                </div>
+                <div class="control-row">
+                    <input type="text" id="peerIdForRequest" placeholder="peer_device_id" style="width: 150px;">
+                    <button id="requestNodeFromPeer" class="btn btn-accent">Request Node from Peer</button>
+                    <button id="shareMemoryWithPeer" class="btn btn-accent">Share Memory Direct</button>
+                </div>
+                <div class="control-row">
+                    <input type="text" id="collaborativePeers" placeholder="peer1,peer2,peer3" style="width: 200px;">
+                    <input type="text" id="taskDescription" placeholder="Collaborative learning task" style="width: 200px;">
+                    <button id="startCollabLearning" class="btn btn-primary">Start Collaborative Learning</button>
+                </div>
+                <div class="control-row">
+                    <select id="errorUrgency">
+                        <option value="1">Low Priority</option>
+                        <option value="5" selected>Medium Priority</option>
+                        <option value="9">High Priority</option>
+                    </select>
+                    <button id="propagateError" class="btn btn-warning">Propagate Error to Peers</button>
+                </div>
+            </div>
         </div>
         
         <div class="metrics">
@@ -298,6 +328,18 @@
             <div class="metric-card blockchain-metric">
                 <span id="memoryCapsulesMetric" class="metric-value">0</span>
                 <div class="metric-label">📦 Memory Capsules</div>
+            </div>
+        </div>
+        
+        <div class="metrics-section">
+            <h3>📊 P2P Network Stats</h3>
+            <canvas id="p2pStatsChart" width="400" height="200"></canvas>
+            <div id="p2pMetrics" class="metrics-display">
+                <div>Connected Peers: <span id="connectedPeers">0</span></div>
+                <div>Known Peers: <span id="knownPeers">0</span></div>
+                <div>Pending Messages: <span id="pendingMessages">0</span></div>
+                <div>Avg Latency: <span id="avgLatency">0ms</span></div>
+                <div>Network Health: <span id="networkHealth">0%</span></div>
             </div>
         </div>
         
@@ -341,10 +383,15 @@
         function addLog(message, type = 'info') {
             const logContainer = document.getElementById('logContainer');
             const logEntry = document.createElement('div');
-            logEntry.className = `log-entry ${type}`;
+            logEntry.className = `log-entry log-${type}`;
             logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
             logContainer.appendChild(logEntry);
             logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 100 messages
+            while (logContainer.children.length > 100) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
         }
         
         // Update metrics display
@@ -674,6 +721,166 @@
             }
         });
         
+        // P2P Networking event handlers
+        document.getElementById('startDiscovery').addEventListener('click', () => {
+            if (network) {
+                const success = network.start_peer_discovery();
+                if (success) {
+                    addLog('🔍 Started peer discovery protocol', 'p2p');
+                    setStatus('🌐 Discovering peers', 'connecting');
+                } else {
+                    addLog('❌ Failed to start peer discovery', 'error');
+                }
+            }
+        });
+
+        document.getElementById('connectPeer').addEventListener('click', () => {
+            const peerInfo = document.getElementById('peerConnectionInfo').value;
+            if (network && peerInfo) {
+                try {
+                    const peerData = JSON.parse(peerInfo);
+                    const success = network.connect_to_peer(peerData.device_id, peerInfo);
+                    if (success) {
+                        addLog(`🤝 Connected to peer: ${peerData.device_id}`, 'p2p');
+                        setStatus('🌐 P2P connected', 'ready');
+                    } else {
+                        addLog(`❌ Failed to connect to peer: ${peerData.device_id}`, 'error');
+                    }
+                } catch (e) {
+                    addLog('❌ Invalid peer connection info JSON', 'error');
+                }
+            }
+        });
+
+        document.getElementById('requestNodeFromPeer').addEventListener('click', () => {
+            const peerId = document.getElementById('peerIdForRequest').value;
+            if (network && peerId) {
+                const requestId = network.request_node_from_peer(peerId, 'inference', 30);
+                if (requestId) {
+                    addLog(`📤 Requested node from peer ${peerId}, request ID: ${requestId}`, 'p2p');
+                } else {
+                    addLog(`❌ Failed to request node from peer: ${peerId}`, 'error');
+                }
+            }
+        });
+
+        document.getElementById('shareMemoryWithPeer').addEventListener('click', () => {
+            const peerId = document.getElementById('peerIdForRequest').value;
+            const clusterId = document.getElementById('clusterId').value;
+            if (network && peerId && clusterId) {
+                const success = network.share_memory_with_peer(peerId, clusterId);
+                if (success) {
+                    addLog(`💾 Shared memory capsule with peer: ${peerId}`, 'p2p');
+                } else {
+                    addLog(`❌ Failed to share memory with peer: ${peerId}`, 'error');
+                }
+            }
+        });
+
+        document.getElementById('startCollabLearning').addEventListener('click', () => {
+            const peerList = document.getElementById('collaborativePeers').value;
+            const taskDesc = document.getElementById('taskDescription').value;
+            if (network && peerList && taskDesc) {
+                const peerIds = peerList.split(',').map(p => p.trim());
+                const sessionId = network.start_collaborative_learning(peerIds, taskDesc);
+                if (sessionId) {
+                    addLog(`🎯 Started collaborative learning session: ${sessionId}`, 'p2p');
+                    addLog(`📚 Task: ${taskDesc}`, 'training');
+                    addLog(`👥 Participants: ${peerIds.length}`, 'training');
+                } else {
+                    addLog('❌ Failed to start collaborative learning', 'error');
+                }
+            }
+        });
+
+        document.getElementById('propagateError').addEventListener('click', () => {
+            const clusterId = document.getElementById('clusterId').value;
+            const urgency = parseInt(document.getElementById('errorUrgency').value);
+            if (network && clusterId) {
+                const propagatedCount = network.propagate_error_to_peers(clusterId, urgency);
+                addLog(`📡 Error propagated to ${propagatedCount} peers (urgency: ${urgency})`, 'p2p');
+            }
+        });
+
+        // Update P2P network visualization
+        function updateP2PNetworkStats() {
+            if (!network) return;
+
+            try {
+                const stats = network.get_p2p_network_stats();
+                if (stats) {
+                    document.getElementById('connectedPeers').textContent = stats.connected_peers || 0;
+                    document.getElementById('knownPeers').textContent = stats.known_peers || 0;
+                    document.getElementById('pendingMessages').textContent = stats.pending_messages || 0;
+                    document.getElementById('avgLatency').textContent = `${Math.round(stats.average_latency || 0)}ms`;
+                    document.getElementById('networkHealth').textContent = `${Math.round((stats.network_health || 0) * 100)}%`;
+                    
+                    drawP2PStatsChart(stats);
+                }
+            } catch (e) {
+                console.warn('Failed to update P2P stats:', e);
+            }
+        }
+
+        function drawP2PStatsChart(stats) {
+            const canvas = document.getElementById('p2pStatsChart');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Network health visualization
+            const healthPercent = (stats.network_health || 0) * 100;
+            const healthColor = healthPercent > 70 ? '#4CAF50' : healthPercent > 40 ? '#FF9800' : '#F44336';
+            
+            // Health bar
+            ctx.fillStyle = healthColor;
+            ctx.fillRect(20, 20, (canvas.width - 40) * (healthPercent / 100), 30);
+            
+            // Health border
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(20, 20, canvas.width - 40, 30);
+            
+            // Health label
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Network Health: ${Math.round(healthPercent)}%`, canvas.width / 2, 40);
+            
+            // Connection stats
+            const connectedPeers = stats.connected_peers || 0;
+            const knownPeers = stats.known_peers || 0;
+            
+            // Peer connection visualization
+            ctx.fillStyle = '#00BCD4';
+            ctx.fillRect(20, 70, Math.min(connectedPeers * 30, canvas.width - 40), 20);
+            
+            ctx.fillStyle = 'rgba(156, 39, 176, 0.5)';
+            ctx.fillRect(20, 100, Math.min(knownPeers * 20, canvas.width - 40), 20);
+            
+            // Labels
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Connected: ${connectedPeers}`, 25, 85);
+            ctx.fillText(`Known: ${knownPeers}`, 25, 115);
+            
+            // Latency indicator
+            const avgLatency = stats.average_latency || 0;
+            const latencyColor = avgLatency < 100 ? '#4CAF50' : avgLatency < 300 ? '#FF9800' : '#F44336';
+            
+            ctx.fillStyle = latencyColor;
+            ctx.fillRect(20, 140, Math.min(avgLatency / 2, canvas.width - 40), 15);
+            
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`Avg Latency: ${Math.round(avgLatency)}ms`, 25, 152);
+        }
+        
         // Initialize WASM module
         async function initializeDemo() {
             try {
@@ -712,6 +919,33 @@
                 updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
             }
         }, 5000);
+
+        // Main update loop
+        function updateDisplay() {
+            if (network) {
+                const clusterId = document.getElementById('clusterId').value;
+                if (clusterId) {
+                    // Update existing metrics
+                    const state = network.get_cluster_state(clusterId);
+                    if (state) {
+                        updateMetrics(state);
+                        drawTopologyChart(state.num_nodes, state.num_connections);
+                    }
+                    
+                    // Update blockchain metrics
+                    updateBlockchainStats();
+                    
+                    // Update vector database stats
+                    updateVectorDBStats();
+                    
+                    // Update P2P network stats
+                    updateP2PNetworkStats();
+                    
+                    // Process training
+                    network.step_simulation(16.0); // ~60fps
+                }
+            }
+        }
     </script>
 </body>
 </html> 
