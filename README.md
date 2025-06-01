@@ -331,7 +331,7 @@ CMD ["node", "signaling-server.js"]
 
 ## 📚 **Resources**
 
-- **[🎮 Live Demo](https://kritivasas.github.io/distributedNN)** - Try it in your browser!
+- **[🎮 Live Demo](https://variablevasasmt.github.io/DistributedNN/)** - Try it in your browser!
 - **[P2P Deployment Guide](P2P_DEPLOYMENT_GUIDE.md)** - Detailed setup instructions
 - **[Research Paper](researchPaper.pdf)** - Theoretical foundation
 - **[Live Demo](demo.html)** - Interactive interface
