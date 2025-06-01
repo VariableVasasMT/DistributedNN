@@ -227,38 +227,6 @@ The design of our architecture is inspired by foundational discoveries in neuros
 These neuroscience principles underpin our system’s approach to local and global memory, adaptive learning, credit assignment, error signaling, structural reorganization, and prioritization of salient experiences for robust, distributed, and biologically plausible AI.
 
 \section{System Architecture}
-\begin{figure}
-    \centering
-    \includegraphics[width=0.5\linewidth]{architecture_diagrams/6f6cd4fd-81a1-4ae3-be8c-6fd34920efe3.png}
-    \caption{Enter Caption}
-    \label{fig:enter-label}
-\end{figure}
-\subsection{Device-Level Forward-Only Neural Networks}
-\begin{figure}
-    \centering
-    \includegraphics[width=0.6\linewidth]{architecture_diagrams/48db0a56-63a0-40ef-9322-787cc6e465d9.png}
-    \caption{Architecture of the Node}
-    \label{fig:enter-label}
-\end{figure}
-Each user device hosts a cluster of threshold-gating nodes:
-\begin{itemize}
-    \item \textbf{Threshold-Gating Node:} Accumulates local inputs; fires when adaptive threshold (\(\delta\)) or timer is reached. Maintains eligibility traces and node-local memory.
-    \item \textbf{Local Forward-Only Error:} After firing, node receives forward-only error or modulatory signal, updating thresholds/timers with no global backpropagation.
-    \item \textbf{Cluster Memory:} Shared buffer collects node outputs, computes local error, and coordinates adaptation.
-    \item \textbf{Dynamic Topology:} Nodes and edges are split/duplicated if usage exceeds thresholds; pruned if underused. Node split increases specialization; edge duplication improves bandwidth. Parameters governing splitting, duplication, and pruning are adaptive and increase with network complexity.
-\end{itemize}
-
-\subsection{Privacy and Local Adaptation}
-    % Insert PNG or TikZ diagram here.
-    \begin{figure}
-        \centering
-        \includegraphics[width=0.5\linewidth]{architecture_diagrams/bbe6c593-355f-42f7-a0a1-79f3937b8efa.png}
-        \caption{Detailed overview of Memory Management}
-        \label{fig:overview-mem-management}
-    \end{figure}
-Raw user data remains strictly on-device. Only summary statistics, error signals, and encrypted “memory capsules” (learned parameters, eligibility traces, etc.) are shared or uploaded for global consolidation.
-
-\section{System Architecture}
 
 \begin{figure}[ht]
     \centering
