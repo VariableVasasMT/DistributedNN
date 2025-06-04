@@ -1,12 +1,17 @@
 {
-  "name": "distributed-neural-signaling-server",
+  "name": "distributed-neural-network-signaling-server",
   "version": "1.0.0",
-  "description": "Signaling server for Distributed Neural Network P2P discovery and WebRTC coordination",
+  "description": "WebSocket signaling server for distributed neural network P2P connections",
   "main": "signaling-server.js",
   "scripts": {
     "start": "node signaling-server.js",
     "dev": "nodemon signaling-server.js",
-    "test": "echo \"No tests yet\" && exit 0"
+    "build": "./build.sh",
+    "build:wasm": "wasm-pack build --target web --out-dir docs/pkg",
+    "build:docs": "cp demo.html docs/index.html",
+    "deploy": "npm run build && git add . && git commit -m 'Deploy updates' && git push origin main",
+    "serve": "python3 -m http.server 8000",
+    "test:local": "echo 'Open http://localhost:8000/demo.html in multiple tabs' && npm run serve"
   },
   "keywords": [
     "p2p",
