@@ -153,6 +153,12 @@ impl DistributedNeuralNetwork {
     // === P2P NETWORKING METHODS ===
 
     #[wasm_bindgen]
+    pub fn configure_signaling_server(&mut self, server_url: String) -> bool {
+        console_log!("Configuring signaling server: {}", server_url);
+        self.p2p_network.configure_signaling_server(server_url)
+    }
+
+    #[wasm_bindgen]
     pub fn start_peer_discovery(&mut self) -> bool {
         console_log!("Starting P2P peer discovery for device: {}", self.device_id);
         self.p2p_network.start_discovery()
@@ -209,6 +215,11 @@ impl DistributedNeuralNetwork {
     #[wasm_bindgen]
     pub fn get_p2p_network_stats(&self) -> JsValue {
         self.p2p_network.get_network_stats()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_discovered_peers(&self) -> String {
+        self.p2p_network.get_discovered_peers()
     }
 
     #[wasm_bindgen]
