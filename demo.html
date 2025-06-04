@@ -275,6 +275,10 @@
             <div class="control-section">
                 <h3>🌐 P2P Networking</h3>
                 <div class="control-row">
+                    <input type="text" id="signalingServerUrl" placeholder="wss://neural-signaling-server-6900d4b1d1c9.herokuapp.com" value="wss://neural-signaling-server-6900d4b1d1c9.herokuapp.com" style="width: 400px;">
+                    <button id="configureSignaling" class="btn btn-primary">Configure Signaling Server</button>
+                </div>
+                <div class="control-row">
                     <button id="startDiscovery" class="btn btn-secondary">Start Peer Discovery</button>
                     <button id="connectPeer" class="btn btn-secondary">Connect to Peer</button>
                     <input type="text" id="peerConnectionInfo" placeholder='{"device_id":"peer1","ip_address":"192.168.1.100","port":8080,"public_key":"key","capabilities":["memory_sharing"],"reputation_score":1.0,"last_seen":0,"cluster_specializations":["general"]}' style="width: 400px;">
@@ -722,8 +726,36 @@
         });
         
         // P2P Networking event handlers
+        document.getElementById('configureSignaling').addEventListener('click', () => {
+            const signalingUrl = document.getElementById('signalingServerUrl').value.trim();
+            if (network && signalingUrl) {
+                try {
+                    const success = network.configure_signaling_server(signalingUrl);
+                    if (success) {
+                        addLog(`🌐 Configured signaling server: ${signalingUrl}`, 'p2p');
+                        setStatus('🟢 Signaling server configured', 'ready');
+                    } else {
+                        addLog('❌ Failed to configure signaling server', 'error');
+                    }
+                } catch (e) {
+                    addLog(`❌ Error configuring signaling server: ${e.message}`, 'error');
+                }
+            } else if (!signalingUrl) {
+                addLog('❌ Please enter a signaling server URL', 'error');
+            } else {
+                addLog('❌ Create a network first!', 'error');
+            }
+        });
+
         document.getElementById('startDiscovery').addEventListener('click', () => {
             if (network) {
+                // Configure signaling server before starting discovery if not already configured
+                const signalingUrl = document.getElementById('signalingServerUrl').value.trim();
+                if (signalingUrl) {
+                    network.configure_signaling_server(signalingUrl);
+                    addLog(`🌐 Using signaling server: ${signalingUrl}`, 'p2p');
+                }
+                
                 const success = network.start_peer_discovery();
                 if (success) {
                     addLog('🔍 Started peer discovery protocol', 'p2p');
@@ -731,6 +763,8 @@
                 } else {
                     addLog('❌ Failed to start peer discovery', 'error');
                 }
+            } else {
+                addLog('❌ Create a network first!', 'error');
             }
         });
 
