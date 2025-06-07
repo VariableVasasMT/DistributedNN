@@ -8,6 +8,7 @@ mod utils;
 mod blockchain;
 mod vector_db;
 mod p2p_network;
+mod webrtc;
 
 pub use threshold_node::*;
 pub use memory::*;
@@ -16,6 +17,7 @@ pub use utils::*;
 pub use blockchain::*;
 pub use vector_db::*;
 pub use p2p_network::*;
+pub use webrtc::*;
 
 // Re-export key types for JavaScript
 #[wasm_bindgen]
@@ -324,4 +326,15 @@ struct VectorDatabaseStats {
     semantic_clusters: usize,
     temporal_entries: usize,
     blockchain_verified_rate: f64,
+}
+
+// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
+// allocator.
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+#[wasm_bindgen]
+pub fn greet() {
+    log("Hello, distributed-neural-wasm!");
 } 

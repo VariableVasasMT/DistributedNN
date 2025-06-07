@@ -6,7 +6,8 @@ const url = require('url');
 
 /**
  * Signaling Server for Distributed Neural Network P2P Discovery
- * Handles peer registration, discovery, and WebRTC signaling
+ * Handles peer registration, discovery, and WebRTC signaling ONLY
+ * After initial handshake, all data flows directly between peers via WebRTC
  */
 
 const PORT = process.env.PORT || 8080;
@@ -70,14 +71,6 @@ function handleMessage(ws, message) {
             handleCapabilityAnnouncement(ws, data);
             break;
             
-        case 'request_node':
-            handleNodeRequest(ws, data);
-            break;
-            
-        case 'share_memory':
-            handleMemoryShare(ws, data);
-            break;
-            
         case 'heartbeat':
             handleHeartbeat(ws, data);
             break;
@@ -86,7 +79,7 @@ function handleMessage(ws, message) {
             console.log(`⚠️ Unknown message type: ${type}`);
             ws.send(JSON.stringify({
                 type: 'error',
-                message: `Unknown message type: ${type}`
+                message: `Unknown message type: ${type}. Note: Data messages should go directly via WebRTC after initial connection.`
             }));
     }
 }
@@ -219,7 +212,10 @@ function handleWebRTCSignaling(ws, data) {
         return;
     }
     
-    // Forward signaling data to target peer
+    // Forward WebRTC signaling data to target peer
+    const signalType = signaling_data.type || 'unknown';
+    console.log(`📡 Forwarding WebRTC ${signalType}: ${source_device_id} → ${target_device_id}`);
+    
     targetPeer.ws.send(JSON.stringify({
         type: 'webrtc_signal',
         data: {
@@ -227,52 +223,6 @@ function handleWebRTCSignaling(ws, data) {
             signaling_data
         }
     }));
-    
-    console.log(`📡 Forwarded WebRTC signal: ${source_device_id} → ${target_device_id}`);
-}
-
-function handleNodeRequest(ws, data) {
-    const { target_device_id, node_request } = data;
-    const source_device_id = connections.get(ws);
-    
-    if (!source_device_id) return;
-    
-    const targetPeer = peerRegistry.get(target_device_id);
-    if (!targetPeer) return;
-    
-    // Forward node request
-    targetPeer.ws.send(JSON.stringify({
-        type: 'node_request',
-        data: {
-            from_device_id: source_device_id,
-            request: node_request,
-            timestamp: Date.now()
-        }
-    }));
-    
-    console.log(`🤝 Node request: ${source_device_id} → ${target_device_id}`);
-}
-
-function handleMemoryShare(ws, data) {
-    const { target_device_id, memory_capsule } = data;
-    const source_device_id = connections.get(ws);
-    
-    if (!source_device_id) return;
-    
-    const targetPeer = peerRegistry.get(target_device_id);
-    if (!targetPeer) return;
-    
-    // Forward memory share
-    targetPeer.ws.send(JSON.stringify({
-        type: 'memory_share',
-        data: {
-            from_device_id: source_device_id,
-            capsule: memory_capsule,
-            timestamp: Date.now()
-        }
-    }));
-    
-    console.log(`💾 Memory share: ${source_device_id} → ${target_device_id}`);
 }
 
 function handleCapabilityAnnouncement(ws, data) {

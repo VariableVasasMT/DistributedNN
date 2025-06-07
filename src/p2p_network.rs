@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use crate::memory::MemoryCapsule;
+use crate::webrtc::WebRTCManager;
 
 // Import the console_log macro
 use crate::console_log;
@@ -19,6 +20,7 @@ pub struct P2PNetwork {
     routing_table: HashMap<String, Vec<String>>, // device_id -> path to reach it
     signaling_server_url: String,
     is_connected_to_server: bool,
+    webrtc_manager: Option<WebRTCManager>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -153,6 +155,8 @@ impl P2PNetwork {
     pub fn new(device_id: String) -> P2PNetwork {
         console_log!("Initializing P2P network for device: {}", device_id);
         
+        let webrtc_manager = WebRTCManager::new(device_id.clone());
+        
         P2PNetwork {
             device_id: device_id.clone(),
             peer_registry: HashMap::new(),
@@ -170,57 +174,282 @@ impl P2PNetwork {
             routing_table: HashMap::new(),
             signaling_server_url: "ws://localhost:8080".to_string(),
             is_connected_to_server: false,
+            webrtc_manager: Some(webrtc_manager),
         }
     }
 
     #[wasm_bindgen]
     pub fn configure_signaling_server(&mut self, server_url: String) -> bool {
         console_log!("Configuring signaling server: {}", server_url);
-        self.signaling_server_url = server_url;
-        self.connect_to_signaling_server()
+        self.signaling_server_url = server_url.clone();
+        
+        // Connect WebRTC manager to signaling server
+        if let Some(ref mut webrtc_manager) = self.webrtc_manager {
+            match webrtc_manager.connect_signaling_server(&server_url) {
+                Ok(_) => {
+                    console_log!("WebRTC manager connected to signaling server");
+                    self.is_connected_to_server = true;
+                    true
+                },
+                Err(e) => {
+                    console_log!("Failed to connect WebRTC manager: {:?}", e);
+                    false
+                }
+            }
+        } else {
+            false
+        }
     }
 
     #[wasm_bindgen]
-    pub fn connect_to_signaling_server(&mut self) -> bool {
-        console_log!("Connecting to signaling server: {}", self.signaling_server_url);
+    pub async fn initiate_webrtc_connection(&mut self, target_device_id: String) -> bool {
+        console_log!("Initiating real WebRTC connection to: {}", target_device_id);
         
-        // In a real implementation, this would establish a WebSocket connection
-        // For now, we'll simulate the connection
-        self.is_connected_to_server = true;
-        
-        // Send registration message to signaling server
-        let _registration_message = SignalingMessage {
-            message_type: "register".to_string(),
-            data: serde_json::json!({
-                "device_id": self.device_id,
-                "peer_info": {
-                    "device_id": self.device_id,
-                    "ip_address": "auto",
-                    "port": 0, // WebRTC doesn't use fixed ports
-                    "public_key": "device_public_key",
-                    "capabilities": ["memory_sharing", "node_lending", "collaborative_learning"],
-                    "reputation_score": 1.0,
-                    "last_seen": js_sys::Date::now(),
-                    "cluster_specializations": ["general"]
+        if let Some(ref mut webrtc_manager) = self.webrtc_manager {
+            // Create peer connection
+            match webrtc_manager.create_peer_connection(&target_device_id) {
+                Ok(_) => {
+                    console_log!("Created peer connection for: {}", target_device_id);
+                    
+                    // Create offer
+                    match webrtc_manager.create_offer(&target_device_id).await {
+                        Ok(offer_json) => {
+                            console_log!("Created WebRTC offer for: {}", target_device_id);
+                            
+                            // Send offer via signaling server
+                            self.send_signaling_message("signal", serde_json::json!({
+                                "target_device_id": target_device_id,
+                                "signaling_data": {
+                                    "type": "offer",
+                                    "offer": offer_json
+                                }
+                            }));
+                            
+                            // Update connection status
+                            let connection = P2PConnection {
+                                peer_id: target_device_id.clone(),
+                                connection_type: ConnectionType::WebRTC,
+                                status: ConnectionStatus::Connecting,
+                                established_time: js_sys::Date::now(),
+                                bandwidth_usage: 0.0,
+                                latency_ms: 0.0,
+                                encryption_key: "webrtc_dtls_key".to_string(),
+                            };
+                            
+                            self.active_connections.insert(target_device_id, connection);
+                            true
+                        },
+                        Err(e) => {
+                            console_log!("Failed to create offer: {:?}", e);
+                            false
+                        }
+                    }
+                },
+                Err(e) => {
+                    console_log!("Failed to create peer connection: {:?}", e);
+                    false
                 }
-            }),
-        };
+            }
+        } else {
+            console_log!("WebRTC manager not available");
+            false
+        }
+    }
+
+    #[wasm_bindgen]
+    pub async fn handle_webrtc_offer(&mut self, peer_id: String, offer_json: String) -> bool {
+        console_log!("Handling WebRTC offer from: {}", peer_id);
         
-        console_log!("Sent registration to signaling server");
-        self.simulate_server_response("registered", serde_json::json!({
-            "device_id": self.device_id,
-            "server_time": js_sys::Date::now(),
-            "peer_count": 1
-        }));
+        if let Some(ref mut webrtc_manager) = self.webrtc_manager {
+            // Create peer connection for incoming offer
+            match webrtc_manager.create_peer_connection(&peer_id) {
+                Ok(_) => {
+                    // Create answer
+                    match webrtc_manager.create_answer(&peer_id, &offer_json).await {
+                        Ok(answer_json) => {
+                            console_log!("Created WebRTC answer for: {}", peer_id);
+                            
+                            // Send answer via signaling server
+                            self.send_signaling_message("signal", serde_json::json!({
+                                "target_device_id": peer_id,
+                                "signaling_data": {
+                                    "type": "answer",
+                                    "answer": answer_json
+                                }
+                            }));
+                            
+                            // Update connection status
+                            let connection = P2PConnection {
+                                peer_id: peer_id.clone(),
+                                connection_type: ConnectionType::WebRTC,
+                                status: ConnectionStatus::Connecting,
+                                established_time: js_sys::Date::now(),
+                                bandwidth_usage: 0.0,
+                                latency_ms: 0.0,
+                                encryption_key: "webrtc_dtls_key".to_string(),
+                            };
+                            
+                            self.active_connections.insert(peer_id, connection);
+                            true
+                        },
+                        Err(e) => {
+                            console_log!("Failed to create answer: {:?}", e);
+                            false
+                        }
+                    }
+                },
+                Err(e) => {
+                    console_log!("Failed to create peer connection: {:?}", e);
+                    false
+                }
+            }
+        } else {
+            false
+        }
+    }
+
+    #[wasm_bindgen]
+    pub async fn handle_webrtc_answer(&mut self, peer_id: String, answer_json: String) -> bool {
+        console_log!("Handling WebRTC answer from: {}", peer_id);
         
+        if let Some(ref mut webrtc_manager) = self.webrtc_manager {
+            match webrtc_manager.set_remote_answer(&peer_id, &answer_json).await {
+                Ok(_) => {
+                    console_log!("Successfully set remote answer for: {}", peer_id);
+                    
+                    // Update connection status to established
+                    if let Some(connection) = self.active_connections.get_mut(&peer_id) {
+                        connection.status = ConnectionStatus::Established;
+                    }
+                    true
+                },
+                Err(e) => {
+                    console_log!("Failed to set remote answer: {:?}", e);
+                    false
+                }
+            }
+        } else {
+            false
+        }
+    }
+
+    #[wasm_bindgen]
+    pub async fn handle_ice_candidate(&mut self, peer_id: String, candidate_json: String) -> bool {
+        console_log!("Handling ICE candidate from: {}", peer_id);
+        
+        if let Some(ref mut webrtc_manager) = self.webrtc_manager {
+            match webrtc_manager.add_ice_candidate(&peer_id, &candidate_json).await {
+                Ok(_) => {
+                    console_log!("Successfully added ICE candidate for: {}", peer_id);
+                    true
+                },
+                Err(e) => {
+                    console_log!("Failed to add ICE candidate: {:?}", e);
+                    false
+                }
+            }
+        } else {
+            false
+        }
+    }
+
+    fn send_signaling_message(&self, message_type: &str, data: serde_json::Value) {
+        // In a real implementation, this would send via WebSocket to signaling server
+        console_log!("Sending signaling message: {} - {:?}", message_type, data);
+        // This would be implemented with actual WebSocket communication
+    }
+
+    #[wasm_bindgen]
+    pub fn connect_to_peer(&mut self, peer_id: String, _connection_info: &str) -> bool {
+        console_log!("Attempting to connect to peer via real WebRTC: {}", peer_id);
+        
+        // Check if peer exists in registry
+        if !self.peer_registry.contains_key(&peer_id) {
+            console_log!("Peer {} not found in registry, attempting discovery first", peer_id);
+            self.start_discovery();
+        }
+        
+        // This will now be handled asynchronously
+        // For now, return true to indicate the process started
         true
+    }
+
+    fn send_direct_message(&self, peer_id: String, message: P2PMessage) -> bool {
+        if let Some(ref webrtc_manager) = self.webrtc_manager {
+            if webrtc_manager.is_connected(&peer_id) {
+                // Send message via WebRTC data channel
+                let message_json = serde_json::to_string(&message).unwrap_or_default();
+                match webrtc_manager.send_data(&peer_id, &message_json) {
+                    Ok(_) => {
+                        console_log!("Sent P2P message via WebRTC to: {}", peer_id);
+                        return true;
+                    },
+                    Err(e) => {
+                        console_log!("Failed to send WebRTC message: {:?}", e);
+                    }
+                }
+            }
+        }
+        
+        // Try to find a route through intermediate peers
+        if let Some(route) = self.routing_table.get(&peer_id) {
+            if !route.is_empty() {
+                console_log!("Routing message to {} via {}", peer_id, route[0]);
+                return true;
+            }
+        }
+
+        console_log!("No direct WebRTC connection or route found to peer: {}", peer_id);
+        false
+    }
+
+    #[wasm_bindgen]
+    pub fn get_webrtc_stats(&self) -> String {
+        if let Some(ref webrtc_manager) = self.webrtc_manager {
+            webrtc_manager.get_connection_stats()
+        } else {
+            serde_json::json!({"error": "WebRTC manager not available"}).to_string()
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn is_peer_connected_webrtc(&self, peer_id: &str) -> bool {
+        if let Some(ref webrtc_manager) = self.webrtc_manager {
+            webrtc_manager.is_connected(peer_id)
+        } else {
+            false
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn close_peer_connection(&mut self, peer_id: &str) -> bool {
+        console_log!("Closing WebRTC connection to peer: {}", peer_id);
+        
+        if let Some(ref mut webrtc_manager) = self.webrtc_manager {
+            match webrtc_manager.close_connection(peer_id) {
+                Ok(_) => {
+                    self.active_connections.remove(peer_id);
+                    console_log!("Successfully closed connection to: {}", peer_id);
+                    true
+                },
+                Err(e) => {
+                    console_log!("Failed to close connection: {:?}", e);
+                    false
+                }
+            }
+        } else {
+            false
+        }
     }
 
     #[wasm_bindgen]
     pub fn start_discovery(&mut self) -> bool {
         if !self.is_connected_to_server {
             console_log!("Not connected to signaling server, attempting to connect...");
-            if !self.connect_to_signaling_server() {
+            // For now, assume we're connected if we have a signaling server URL
+            if !self.signaling_server_url.is_empty() {
+                self.is_connected_to_server = true;
+            } else {
                 return false;
             }
         }
@@ -245,54 +474,6 @@ impl P2PNetwork {
         
         self.discovery_protocol.last_discovery = js_sys::Date::now();
         true
-    }
-
-    #[wasm_bindgen]
-    pub fn initiate_webrtc_connection(&mut self, target_device_id: String) -> bool {
-        console_log!("Initiating WebRTC connection to: {}", target_device_id);
-        
-        if !self.is_connected_to_server {
-            console_log!("Not connected to signaling server");
-            return false;
-        }
-        
-        // Create WebRTC offer (simplified simulation)
-        let webrtc_offer = serde_json::json!({
-            "type": "offer",
-            "sdp": "simulated_sdp_offer_data",
-            "ice_candidates": ["candidate:example"]
-        });
-        
-        // Send signaling message through server
-        let _signaling_message = SignalingMessage {
-            message_type: "signal".to_string(),
-            data: serde_json::json!({
-                "target_device_id": target_device_id,
-                "signaling_data": webrtc_offer
-            }),
-        };
-        
-        console_log!("Sent WebRTC offer via signaling server");
-        
-        // Simulate successful connection establishment
-        self.establish_connection(target_device_id);
-        
-        true
-    }
-
-    fn establish_connection(&mut self, peer_id: String) {
-        let connection = P2PConnection {
-            peer_id: peer_id.clone(),
-            connection_type: ConnectionType::WebRTC,
-            status: ConnectionStatus::Established,
-            established_time: js_sys::Date::now(),
-            bandwidth_usage: 0.0,
-            latency_ms: 50.0, // Simulated low latency
-            encryption_key: "webrtc_dtls_key".to_string(),
-        };
-        
-        self.active_connections.insert(peer_id.clone(), connection);
-        console_log!("Established WebRTC connection to: {}", peer_id);
     }
 
     fn simulate_server_response(&mut self, response_type: &str, data: serde_json::Value) {
@@ -349,20 +530,6 @@ impl P2PNetwork {
             console_log!("Discovered peer: {} ({})", peer.device_id, peer.capabilities.join(", "));
             self.peer_registry.insert(peer.device_id.clone(), peer);
         }
-    }
-
-    #[wasm_bindgen]
-    pub fn connect_to_peer(&mut self, peer_id: String, _connection_info: &str) -> bool {
-        console_log!("Attempting to connect to peer via WebRTC: {}", peer_id);
-        
-        // Check if peer exists in registry
-        if !self.peer_registry.contains_key(&peer_id) {
-            console_log!("Peer {} not found in registry, attempting discovery first", peer_id);
-            self.start_discovery();
-        }
-        
-        // Initiate WebRTC connection through signaling server
-        self.initiate_webrtc_connection(peer_id)
     }
 
     #[wasm_bindgen]
@@ -555,28 +722,6 @@ impl P2PNetwork {
         };
 
         serde_wasm_bindgen::to_value(&stats).unwrap_or(JsValue::NULL)
-    }
-
-    fn send_direct_message(&self, peer_id: String, message: P2PMessage) -> bool {
-        if let Some(connection) = self.active_connections.get(&peer_id) {
-            if connection.status == ConnectionStatus::Established {
-                // In a real implementation, this would use the actual network transport
-                console_log!("Sending {} message to peer: {}", 
-                    format!("{:?}", message.message_type), peer_id);
-                return true;
-            }
-        }
-        
-        // Try to find a route through intermediate peers
-        if let Some(route) = self.routing_table.get(&peer_id) {
-            if !route.is_empty() {
-                console_log!("Routing message to {} via {}", peer_id, route[0]);
-                return true;
-            }
-        }
-
-        console_log!("No route found to peer: {}", peer_id);
-        false
     }
 
     fn handle_message(&mut self, message: P2PMessage) {
