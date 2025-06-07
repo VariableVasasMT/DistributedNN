@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Building Distributed Neural Network with P2P..."
+echo "🚀 Building Distributed Neural Network with True P2P WebRTC..."
 
 # Colors for output
 RED='\033[0;31m'
@@ -26,16 +26,30 @@ log_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
-# Step 1: Build WASM module for docs deployment (matching GitHub workflow)
-log_info "Building WASM module for GitHub Pages..."
-if wasm-pack build --target web --out-dir docs/pkg; then
-    log_success "WASM module built successfully in docs/pkg/"
+# Step 1: Clean previous builds
+log_info "Cleaning previous builds..."
+rm -rf pkg/
+rm -rf docs/pkg/
+
+# Step 2: Build WASM module with correct package name
+log_info "Building WASM module with WebRTC support..."
+if wasm-pack build --target web --out-dir pkg; then
+    log_success "WASM module built successfully in pkg/"
 else
     log_error "WASM build failed"
     exit 1
 fi
 
-# Step 2: Update docs from demo.html (ensure docs/index.html is the main page)
+# Step 3: Copy WASM module to docs for GitHub Pages
+log_info "Copying WASM module to docs for GitHub Pages..."
+if cp -r pkg/ docs/pkg/; then
+    log_success "WASM module copied to docs/pkg/"
+else
+    log_error "Failed to copy WASM module to docs"
+    exit 1
+fi
+
+# Step 4: Update docs from demo.html (ensure docs/index.html is the main page)
 log_info "Updating GitHub Pages documentation..."
 if cp demo.html docs/index.html; then
     log_success "Documentation updated from demo.html"
@@ -44,38 +58,63 @@ else
     exit 1
 fi
 
-# Step 3: Update README with correct GitHub Pages URL
+# Step 5: Start signaling server in background for local testing
+log_info "Starting signaling server for local testing..."
+if command -v node &> /dev/null; then
+    if [ -f "signaling-server.js" ]; then
+        log_info "Signaling server available at: ws://localhost:8080"
+        log_warning "Run 'node signaling-server.js' in another terminal for P2P functionality"
+    else
+        log_warning "signaling-server.js not found"
+    fi
+else
+    log_warning "Node.js not installed - signaling server won't be available"
+fi
+
+# Step 6: Update README with correct GitHub Pages URL
 log_info "Updating README.md with latest features and correct URLs..."
 cat > README.md << 'EOF'
-# 🧠⛓️ Distributed Neural Network with Blockchain & P2P
+# 🧠⛓️ Distributed Neural Network with True P2P WebRTC
 
-> **Real-time neural network collaboration across the internet with blockchain incentives**
+> **Real peer-to-peer neural network collaboration with WebRTC data channels and blockchain incentives**
 
-## 🌟 **New: Global P2P Networking**
+## 🌟 **New: True Peer-to-Peer Architecture**
 
-Connect your neural network to others worldwide! No local network required.
+Direct device-to-device communication with **NO data relay** through servers!
 
 ### **🚀 Quick Start - Join the Global Network**
 
 1. **Visit the live demo:** https://variablevasasmt.github.io/distributedNN
-2. **Click "🚀 Create Cluster"** to initialize your neural network
-3. **Click "🌐 Connect to Global Network"** - uses our Heroku signaling server
-4. **Click "🔍 Find Peers"** to discover other neural networks worldwide
-5. **Start collaborative learning!**
+2. **Click "🚀 Create Cluster"** to initialize your neural network  
+3. **Connect to Signaling Server** (only for peer discovery)
+4. **Start Peer Discovery** to find other devices
+5. **Initiate WebRTC Connection** for direct P2P communication
+6. **Share neural data directly** between devices!
 
-### **🌐 Live Signaling Server**
-- **URL:** `wss://neural-signaling-server-6900d4b1d1c9.herokuapp.com`
-- **Status:** ✅ Live and ready for connections
-- **Global reach:** Connect with peers anywhere in the world
+### **🌐 True P2P Architecture**
+```
+Device A ←──WebRTC Data Channel──→ Device B
+    ↑                                 ↑
+    └──Signaling Server (handshake)───┘
+       (Discovery ONLY - No data relay)
+```
+
+### **🔧 What Makes This True P2P:**
+- ✅ **Signaling Server**: Used ONLY for discovery and WebRTC handshake
+- ✅ **Data Transfer**: Direct peer-to-peer via WebRTC data channels  
+- ✅ **No Relay**: After handshake, ALL data flows directly between devices
+- ✅ **Security**: WebRTC provides built-in DTLS encryption
+- ✅ **Scalable**: No bandwidth limitations from central servers
 
 ## 🎯 **Core Features**
 
-### **🤝 P2P Neural Networking**
-- **Global peer discovery** via WebRTC signaling
-- **Direct memory sharing** between devices
+### **🤝 WebRTC P2P Neural Networking**
+- **Real WebRTC connections** using browser APIs
+- **Direct memory sharing** via data channels
+- **Node borrowing** over P2P links  
 - **Collaborative learning** sessions
-- **Error propagation** across the network
-- **Real-time synchronization**
+- **Error propagation** across direct connections
+- **End-to-end encryption** via WebRTC DTLS
 
 ### **⛓️ Blockchain Integration**
 - **Node borrowing marketplace** with smart contracts
@@ -115,6 +154,9 @@ cd distributedNN
 # Build everything (WASM + docs)
 ./build.sh
 
+# Start signaling server (separate terminal)
+node signaling-server.js
+
 # Start local development server
 python3 -m http.server 8000
 
@@ -129,57 +171,70 @@ The project automatically deploys to GitHub Pages on every push to `main`:
 
 ### **Deploy Your Own Signaling Server**
 ```bash
-# Install dependencies
-npm install
+# The signaling server only handles peer discovery - no data passes through it
+cd distributedNN
+node signaling-server.js
 
-# Deploy to Heroku
+# Deploy to Heroku (optional)
 heroku create your-neural-signaling-server
 git push heroku main
-
-# Or run locally
-npm start
 ```
 
-## 🌍 **Global Network Architecture**
+## 🌍 **Network Architecture Details**
 
-```
-Your Browser ←→ Signaling Server ←→ Other Peers
-     ↓              (Heroku)              ↑
-     └─────── Direct WebRTC Connection ──┘
-```
+### **Signaling Server Role:**
+- 📡 **Peer discovery** and registration
+- 🤝 **WebRTC handshake** (offer/answer/ICE candidates)
+- 🚫 **NO data relay** - all neural data goes direct P2P
+
+### **WebRTC Data Channels:**
+- 📊 **Neural activations** shared directly
+- 💾 **Memory capsules** transferred P2P
+- 🔄 **Error gradients** propagated direct
+- 🤝 **Node borrowing** requests via P2P
 
 ### **How It Works:**
-1. **Discovery:** Signaling server helps peers find each other
-2. **Connection:** Direct WebRTC connections established
-3. **Collaboration:** Neural networks share memory and gradients
-4. **Incentives:** Blockchain tracks contributions and rewards
+1. **Discovery:** Peers register with signaling server
+2. **Handshake:** WebRTC offer/answer exchange via signaling
+3. **Connection:** Direct P2P data channel established
+4. **Communication:** All neural data flows directly between devices
+5. **Blockchain:** Transactions recorded for incentives
 
 ## 📊 **Network Stats & Monitoring**
 
 The demo provides real-time visualization of:
-- **Connected peers** across the globe
-- **Network health** and latency metrics
-- **Memory sharing** activity
-- **Blockchain transactions** and blocks
-- **Learning progress** and error propagation
+- **WebRTC connection status** and data channel health
+- **Direct P2P message** transmission
+- **Peer discovery** and connection establishment
+- **Blockchain transactions** and incentive distribution
+- **Neural network collaboration** metrics
 
-## 🔧 **Configuration Options**
+## 🔧 **API Reference**
 
-### **P2P Networking**
+### **P2P WebRTC Networking**
 ```javascript
-// Configure your signaling server
-network.configure_signaling_server("wss://your-server.herokuapp.com");
+// Initialize with WebRTC support
+const network = new DistributedNeuralNetwork("my_device_id");
 
-// Start peer discovery
+// Configure signaling server (discovery only)
+network.configure_signaling_server("ws://localhost:8080");
+
+// Discover peers
 network.start_peer_discovery();
 
-// Connect to specific peer
-network.connect_to_peer(peer_id, peer_info);
+// Establish direct WebRTC connection
+await network.initiate_webrtc_connection("target_peer_id");
+
+// Send data directly via WebRTC data channel
+network.send_direct_message("Hello P2P!");
+
+// Close direct connection
+network.close_webrtc_connection("peer_id");
 ```
 
 ### **Blockchain Integration**
 ```javascript
-// Request computational resources
+// Request computational resources (sent via P2P)
 network.request_node_borrowing(owner_id, node_id, duration_hours);
 
 // Mine blocks and earn rewards
@@ -194,119 +249,34 @@ network.validate_blockchain();
 // Process distributed input
 const outputs = network.process_input(cluster_id, input_data);
 
-// Semantic memory search
-const memories = network.semantic_memory_search(query_vector, tags, max_results);
+// Share memory directly via P2P
+network.share_memory_with_peer(peer_id, cluster_id);
 
-// Start collaborative learning
-const session_id = network.start_collaborative_learning([peer1, peer2], task_description);
+// Start collaborative learning session
+network.start_collaborative_learning([peer1, peer2], "task_description");
 ```
-
-## 🎮 **Interactive Demo Features**
-
-- **🚀 Create Cluster:** Initialize your neural network
-- **🌐 Connect to Global Network:** Join the worldwide network
-- **🔍 Find Peers:** Discover other neural networks
-- **⚡ Process Input:** Run inference across the network
-- **🤝 Borrow Nodes:** Rent computational power from peers
-- **⛏️ Mine Blocks:** Earn credits by validating transactions
-- **📊 Real-time Visualization:** Monitor network activity
-
-## 🌟 **Use Cases**
-
-### **🎓 Distributed Learning**
-- Train models across multiple devices
-- Share knowledge without sharing raw data
-- Collaborative research networks
-
-### **💡 Edge AI Networks**
-- IoT device collaboration
-- Mobile neural network clusters
-- Resource-constrained environments
-
-### **🏢 Enterprise AI**
-- Federated learning systems
-- Cross-organization collaboration
-- Privacy-preserving AI networks
-
-### **🎮 Gaming & Simulation**
-- Multi-player AI experiences
-- Distributed game intelligence
-- Real-time strategy networks
 
 ## 🔒 **Security & Privacy**
 
-- **End-to-end encryption** for all P2P communications
-- **Blockchain verification** for memory integrity
-- **Reputation systems** to prevent malicious behavior
-- **Privacy-preserving** gradient sharing
-- **Secure WebRTC** connections
+- **WebRTC DTLS encryption** secures all P2P communication
+- **No data passes through signaling server** after handshake
+- **Blockchain verification** ensures data integrity
+- **Direct device connections** minimize attack surface
+- **Decentralized architecture** prevents single points of failure
 
-## 🤝 **Contributing**
+## 🚀 **Performance Benefits**
 
-We welcome contributions! Here's how to get involved:
+- **No bandwidth bottlenecks** from central servers
+- **Lower latency** with direct device communication  
+- **Scalable** - network grows stronger with more peers
+- **Efficient** - no unnecessary data relay hops
+- **Resilient** - works even if signaling server goes down (existing connections persist)
 
-1. **Fork the repository**
-2. **Create a feature branch:** `git checkout -b feature/amazing-feature`
-3. **Make your changes** and test thoroughly
-4. **Run the build script:** `./build.sh`
-5. **Submit a pull request**
-
-### **Development Areas**
-- 🧠 **Neural Architecture:** Improve threshold gating algorithms
-- ⛓️ **Blockchain:** Enhance smart contract functionality
-- 🌐 **P2P Networking:** Optimize peer discovery and connection
-- 📊 **Visualization:** Create better monitoring dashboards
-- 🔒 **Security:** Strengthen encryption and validation
-
-## 📚 **Documentation**
-
-- **[P2P Deployment Guide](P2P_DEPLOYMENT_GUIDE.md)** - Complete P2P setup instructions
-- **[Live Demo](https://variablevasasmt.github.io/distributedNN)** - Try it now!
-- **[GitHub Repository](https://github.com/variablevasasmt/distributedNN)** - Source code
-
-## 🐛 **Troubleshooting**
-
-### **Common Issues**
-
-**WASM Module Not Loading:**
-```bash
-# Rebuild the WASM module
-./build.sh
-```
-
-**P2P Connection Failed:**
-```javascript
-// Check signaling server status
-network.configure_signaling_server("wss://neural-signaling-server-6900d4b1d1c9.herokuapp.com");
-```
-
-**Blockchain Validation Errors:**
-```javascript
-// Validate and repair if needed
-const isValid = network.validate_blockchain();
-```
-
-## 📄 **License**
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🚀 **What's Next?**
-
-- **🌍 Mobile app** for neural network participation
-- **🎯 Specialized algorithms** for different domains
-- **🔗 Integration** with existing ML frameworks
-- **📈 Advanced analytics** and insights
-- **🤖 Autonomous peer discovery** and optimization
-
----
-
-**Ready to join the distributed neural network revolution?** 
-🌐 **[Try the live demo now!](https://variablevasasmt.github.io/distributedNN)**
 EOF
 
-log_success "README.md updated with correct GitHub Pages URL"
+log_success "README.md updated with True P2P WebRTC documentation"
 
-# Step 4: Ensure docs directory structure is correct for GitHub Pages
+# Step 7: Ensure docs directory structure is correct for GitHub Pages
 log_info "Ensuring docs structure is correct for GitHub Pages..."
 if [ ! -d "docs/pkg" ]; then
     mkdir -p docs/pkg
@@ -351,7 +321,7 @@ else
     fi
 fi
 
-# Step 5: Start local server if requested
+# Step 8: Start local server if requested
 echo ""
 read -p "🖥️  Start local development server? (y/N): " -n 1 -r
 echo ""

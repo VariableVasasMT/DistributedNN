@@ -273,15 +273,28 @@
             </div>
 
             <div class="control-section">
-                <h3>🌐 P2P Networking</h3>
+                <h3>🌐 True Peer-to-Peer WebRTC Networking</h3>
+                <div class="architecture-note" style="background: rgba(255, 215, 0, 0.1); border: 2px solid #ffd700; border-radius: 10px; padding: 15px; margin: 10px 0;">
+                    <h4 style="color: #ffd700; margin-top: 0;">🔧 True P2P Architecture:</h4>
+                    <p style="margin: 5px 0;"><strong>✅ Signaling Server:</strong> Used ONLY for initial discovery and WebRTC handshake</p>
+                    <p style="margin: 5px 0;"><strong>✅ Data Transfer:</strong> Direct peer-to-peer via WebRTC data channels</p>
+                    <p style="margin: 5px 0;"><strong>✅ No Relay:</strong> After handshake, ALL data flows directly between devices</p>
+                    <p style="margin: 5px 0;"><strong>🔒 Security:</strong> WebRTC provides built-in DTLS encryption</p>
+                </div>
                 <div class="control-row">
-                    <input type="text" id="signalingServerUrl" placeholder="wss://neural-signaling-server-6900d4b1d1c9.herokuapp.com" value="wss://neural-signaling-server-6900d4b1d1c9.herokuapp.com" style="width: 400px;">
+                    <input type="text" id="signalingServerUrl" placeholder="ws://localhost:8080" value="ws://localhost:8080" style="width: 300px;">
                     <button id="configureSignaling" class="btn btn-primary">Configure Signaling Server</button>
+                    <button id="getWebRTCStats" class="btn btn-secondary">Get WebRTC Stats</button>
                 </div>
                 <div class="control-row">
                     <button id="startDiscovery" class="btn btn-secondary">Start Peer Discovery</button>
-                    <button id="connectPeer" class="btn btn-secondary">Connect to Peer</button>
-                    <input type="text" id="peerConnectionInfo" placeholder='{"device_id":"peer1","ip_address":"192.168.1.100","port":8080,"public_key":"key","capabilities":["memory_sharing"],"reputation_score":1.0,"last_seen":0,"cluster_specializations":["general"]}' style="width: 400px;">
+                    <input type="text" id="targetPeerId" placeholder="Target Peer ID" value="demo_device_002" style="width: 200px;">
+                    <button id="initiateWebRTC" class="btn btn-accent">Initiate WebRTC Connection</button>
+                    <button id="closeWebRTCConnection" class="btn btn-danger">Close Connection</button>
+                </div>
+                <div class="control-row">
+                    <input type="text" id="messageText" placeholder="Message to send via WebRTC" value="Hello via direct P2P!" style="width: 300px;">
+                    <button id="sendDirectMessage" class="btn btn-primary">Send Direct P2P Message</button>
                 </div>
                 <div class="control-row">
                     <input type="text" id="peerIdForRequest" placeholder="peer_device_id" style="width: 150px;">
@@ -300,6 +313,11 @@
                         <option value="9">High Priority</option>
                     </select>
                     <button id="propagateError" class="btn btn-warning">Propagate Error to Peers</button>
+                    <button id="checkWebRTCConnections" class="btn btn-secondary">Check WebRTC Connections</button>
+                </div>
+                <div class="peer-list" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 5px; margin: 10px 0;">
+                    <h4>📋 Discovered Peers:</h4>
+                    <div id="discoveredPeers">No peers discovered yet</div>
                 </div>
             </div>
         </div>
@@ -369,9 +387,10 @@
     </div>
 
     <script type="module">
-        import init, { DistributedNeuralNetwork } from './pkg/distributed_neural_wasm.js';
+        import init, { DistributedNeuralNetwork, P2PNetwork, WebRTCManager } from './pkg/distributed_neural_network.js';
         
         let network = null;
+        let webrtcManager = null;
         let activityHistory = [];
         let errorHistory = [];
         let blockchainHistory = [];
@@ -588,7 +607,9 @@
             
             if (!network) {
                 network = new DistributedNeuralNetwork(deviceId);
+                webrtcManager = new WebRTCManager(deviceId);
                 addLog(`Created network for device: ${deviceId}`, 'blockchain');
+                addLog(`Initialized WebRTC manager for device: ${deviceId}`, 'p2p');
             }
             
             const success = network.create_cluster(clusterId, nodeCount);
@@ -760,6 +781,13 @@
                 if (success) {
                     addLog('🔍 Started peer discovery protocol', 'p2p');
                     setStatus('🌐 Discovering peers', 'connecting');
+                    
+                    // Update discovered peers display
+                    setTimeout(() => {
+                        const peers = JSON.parse(network.get_discovered_peers());
+                        updateDiscoveredPeers(peers);
+                        addLog(`🔍 Found ${peers.length} peers`, 'p2p');
+                    }, 1000);
                 } else {
                     addLog('❌ Failed to start peer discovery', 'error');
                 }
@@ -768,21 +796,68 @@
             }
         });
 
-        document.getElementById('connectPeer').addEventListener('click', () => {
-            const peerInfo = document.getElementById('peerConnectionInfo').value;
-            if (network && peerInfo) {
-                try {
-                    const peerData = JSON.parse(peerInfo);
-                    const success = network.connect_to_peer(peerData.device_id, peerInfo);
-                    if (success) {
-                        addLog(`🤝 Connected to peer: ${peerData.device_id}`, 'p2p');
-                        setStatus('🌐 P2P connected', 'ready');
-                    } else {
-                        addLog(`❌ Failed to connect to peer: ${peerData.device_id}`, 'error');
-                    }
-                } catch (e) {
-                    addLog('❌ Invalid peer connection info JSON', 'error');
+        function updateDiscoveredPeers(peers) {
+            const peerContainer = document.getElementById('discoveredPeers');
+            if (peers.length === 0) {
+                peerContainer.innerHTML = 'No peers discovered yet';
+                return;
+            }
+            
+            peerContainer.innerHTML = peers.map(peer => `
+                <div style="background: rgba(255, 255, 255, 0.1); padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                    <span><strong>${peer.device_id}</strong> - ${peer.capabilities.join(', ')}</span>
+                    <button onclick="connectToPeer('${peer.device_id}')" style="padding: 5px 10px; background: #9C27B0; color: white; border: none; border-radius: 3px; cursor: pointer;">Connect</button>
+                </div>
+            `).join('');
+        }
+
+        window.connectToPeer = function(peerId) {
+            document.getElementById('targetPeerId').value = peerId;
+            if (webrtcManager) {
+                addLog(`🔗 Initiating WebRTC connection to: ${peerId}`, 'p2p');
+                // This would trigger the WebRTC connection process
+                document.getElementById('initiateWebRTC').click();
+            }
+        };
+
+        document.getElementById('initiateWebRTC').addEventListener('click', () => {
+            const peerId = document.getElementById('targetPeerId').value;
+            if (network && peerId) {
+                const success = network.initiate_webrtc_connection(peerId);
+                if (success) {
+                    addLog(`🤝 Initiated WebRTC connection to peer: ${peerId}`, 'p2p');
+                    setStatus('🌐 WebRTC connected', 'ready');
+                } else {
+                    addLog(`❌ Failed to initiate WebRTC connection to peer: ${peerId}`, 'error');
                 }
+            }
+        });
+
+        document.getElementById('closeWebRTCConnection').addEventListener('click', () => {
+            const peerId = document.getElementById('targetPeerId').value;
+            if (network && peerId) {
+                const success = network.close_webrtc_connection(peerId);
+                if (success) {
+                    addLog(`🔒 Closed WebRTC connection to peer: ${peerId}`, 'p2p');
+                    setStatus('🌐 WebRTC disconnected', 'ready');
+                } else {
+                    addLog(`❌ Failed to close WebRTC connection to peer: ${peerId}`, 'error');
+                }
+            }
+        });
+
+        document.getElementById('sendDirectMessage').addEventListener('click', () => {
+            const message = document.getElementById('messageText').value;
+            const peerId = document.getElementById('targetPeerId').value;
+            if (network && message && peerId) {
+                try {
+                    network.send_direct_message(message);
+                    addLog(`📤 Sent direct P2P message to ${peerId}: ${message}`, 'p2p');
+                } catch (error) {
+                    addLog(`❌ Failed to send direct message: ${error}`, 'error');
+                }
+            } else {
+                addLog('❌ Enter peer ID and message first', 'error');
             }
         });
 
@@ -833,6 +908,30 @@
             if (network && clusterId) {
                 const propagatedCount = network.propagate_error_to_peers(clusterId, urgency);
                 addLog(`📡 Error propagated to ${propagatedCount} peers (urgency: ${urgency})`, 'p2p');
+            }
+        });
+
+        document.getElementById('checkWebRTCConnections').addEventListener('click', () => {
+            const peerId = document.getElementById('targetPeerId').value;
+            if (network && peerId) {
+                const connected = network.check_webrtc_connections();
+                addLog(`🔗 Connection to ${peerId}: ${connected ? 'CONNECTED ✅' : 'NOT CONNECTED ❌'}`, 
+                       connected ? 'p2p' : 'error');
+            } else {
+                addLog('❌ Enter peer ID first', 'error');
+            }
+        });
+
+        document.getElementById('getWebRTCStats').addEventListener('click', () => {
+            if (webrtcManager) {
+                try {
+                    const stats = JSON.parse(webrtcManager.get_connection_stats());
+                    addLog(`📊 WebRTC Stats: ${JSON.stringify(stats, null, 2)}`, 'p2p');
+                } catch (error) {
+                    addLog(`❌ Failed to get WebRTC stats: ${error}`, 'error');
+                }
+            } else {
+                addLog('❌ Create a network first!', 'error');
             }
         });
 
