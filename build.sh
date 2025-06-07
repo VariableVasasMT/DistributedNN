@@ -363,7 +363,7 @@ else
             
             if git push heroku main; then
                 log_success "🌐 Changes pushed to Heroku!"
-                heroku logs --tail -a neural-signaling-server
+                heroku logs -a neural-signaling-server
                 heroku ps -a neural-signaling-server
             else
                 log_error "Failed to push to Heroku"

@@ -1267,8 +1267,10 @@
 
             document.getElementById('sendDirectMessage').addEventListener('click', () => {
                 const message = document.getElementById('messageText').value;
-                const peerId = document.getElementById('targetPeerId').value;
-                if (network && message && peerId) {
+                const connectedPeerElement = document.getElementById('connectedPeer');
+                const peerId = connectedPeerElement ? connectedPeerElement.textContent : '';
+                
+                if (network && message && peerId && peerId !== 'None') {
                     try {
                         network.send_direct_message(message);
                         addLog(`📤 Sent direct P2P message to ${peerId}: ${message}`, 'p2p');
@@ -1276,7 +1278,7 @@
                         addLog(`❌ Failed to send direct message: ${error}`, 'error');
                     }
                 } else {
-                    addLog('❌ Enter peer ID and message first', 'error');
+                    addLog('❌ No active peer connection or missing message', 'error');
                 }
             });
 
@@ -1331,13 +1333,15 @@
             });
 
             document.getElementById('checkWebRTCConnections').addEventListener('click', () => {
-                const peerId = document.getElementById('targetPeerId').value;
-                if (network && peerId) {
+                const connectedPeerElement = document.getElementById('connectedPeer');
+                const peerId = connectedPeerElement ? connectedPeerElement.textContent : '';
+                
+                if (network && peerId && peerId !== 'None') {
                     const connected = network.check_webrtc_connections();
                     addLog(`🔗 Connection to ${peerId}: ${connected ? 'CONNECTED ✅' : 'NOT CONNECTED ❌'}`, 
                            connected ? 'p2p' : 'error');
                 } else {
-                    addLog('❌ Enter peer ID first', 'error');
+                    addLog('❌ No active peer connection to check', 'error');
                 }
             });
 
@@ -1371,15 +1375,17 @@
                     }
                     
                     // Check for successful auto-connections
-                    const targetPeerId = document.getElementById('targetPeerId').value;
-                    if (targetPeerId && network.check_webrtc_connections()) {
-                        const isConnected = network.is_peer_connected_webrtc(targetPeerId);
+                    const connectedPeerElement = document.getElementById('connectedPeer');
+                    const connectedPeerId = connectedPeerElement ? connectedPeerElement.textContent : '';
+                    
+                    if (connectedPeerId && connectedPeerId !== 'None' && network.check_webrtc_connections()) {
+                        const isConnected = network.is_peer_connected_webrtc(connectedPeerId);
                         if (isConnected) {
                             // Update status if we successfully connected
                             const currentStatus = document.getElementById('status').textContent;
                             if (currentStatus.includes('connecting')) {
                                 setStatus('🟢 WebRTC connected to peer', 'ready');
-                                addLog(`✅ Successfully connected to auto-selected peer: ${targetPeerId}`, 'p2p');
+                                addLog(`✅ Successfully connected to auto-selected peer: ${connectedPeerId}`, 'p2p');
                                 
                                 // Update the peer list to show connection status
                                 updateDiscoveredPeers(JSON.parse(network.get_discovered_peers()));
@@ -1393,17 +1399,19 @@
             
             // Monitor auto-connection progress
             function monitorAutoConnection() {
-                const targetPeerId = document.getElementById('targetPeerId').value;
-                if (targetPeerId && network) {
-                    const isConnected = network.is_peer_connected_webrtc(targetPeerId);
+                const connectedPeerElement = document.getElementById('connectedPeer');
+                const connectedPeerId = connectedPeerElement ? connectedPeerElement.textContent : '';
+                
+                if (connectedPeerId && connectedPeerId !== 'None' && network) {
+                    const isConnected = network.is_peer_connected_webrtc(connectedPeerId);
                     if (isConnected) {
-                        addLog(`🔗 Auto-connection established with: ${targetPeerId}`, 'p2p');
+                        addLog(`🔗 Auto-connection established with: ${connectedPeerId}`, 'p2p');
                         
                         // Try sending a test message
                         setTimeout(() => {
                             try {
                                 network.send_direct_message("Hello from auto-connected peer!");
-                                addLog(`📤 Sent test message to auto-connected peer: ${targetPeerId}`, 'p2p');
+                                addLog(`📤 Sent test message to auto-connected peer: ${connectedPeerId}`, 'p2p');
                             } catch (e) {
                                 addLog(`⚠️ Could not send test message: ${e.message}`, 'warning');
                             }
