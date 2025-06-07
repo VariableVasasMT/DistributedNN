@@ -49,7 +49,7 @@ else
     exit 1
 fi
 
-# Step 4: Update docs from demo.html (ensure docs/index.html is the main page)
+# Step 4: Update docs from Heroku signaling serverhtml (ensure docs/index.html is the main page)
 log_info "Updating GitHub Pages documentation..."
 if cp demo.html docs/index.html; then
     log_success "Documentation updated from demo.html"
@@ -354,18 +354,19 @@ else
             if git push origin main; then
                 log_success "🌐 Changes pushed to GitHub!"
                 log_success "📄 GitHub Actions will build and deploy GitHub Pages automatically"
-                log_success "📡 Heroku will also deploy the signaling server automatically"
                 log_success "🔗 Live demo: https://variablevasasmt.github.io/distributedNN"
-                log_success "📡 Signaling server: https://neural-signaling-server.herokuapp.com"
                 log_info "⏱️  Deployment usually takes 2-3 minutes to complete"
                 
-                # Check Heroku deployment status
-                echo ""
-                log_info "🔍 To check Heroku deployment:"
-                log_info "   heroku logs --tail -a neural-signaling-server"
-                log_info "   heroku ps -a neural-signaling-server"
             else
                 log_error "Failed to push to GitHub"
+            fi
+            
+            if git push heroku main; then
+                log_success "🌐 Changes pushed to Heroku!"
+                heroku logs --tail -a neural-signaling-server
+                heroku ps -a neural-signaling-server
+            else
+                log_error "Failed to push to Heroku"
             fi
         else
             log_info "Skipped GitHub push (you can push manually later)"
