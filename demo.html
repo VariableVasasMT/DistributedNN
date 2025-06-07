@@ -293,7 +293,7 @@
                     <p style="margin: 5px 0;"><strong>🔒 Security:</strong> WebRTC provides built-in DTLS encryption</p>
                 </div>
                 <div class="control-row">
-                    <input type="text" id="signalingServerUrl" placeholder="ws://localhost:8080" value="ws://localhost:8080" style="width: 300px;">
+                    <input type="text" id="signalingServerUrl" placeholder="Loading signaling server..." style="width: 300px;">
                     <button id="configureSignaling" class="btn btn-primary">Configure Signaling Server</button>
                     <button id="getWebRTCStats" class="btn btn-secondary">Get WebRTC Stats</button>
                 </div>
@@ -406,6 +406,7 @@
         let errorHistory = [];
         let blockchainHistory = [];
         let currentDeviceId = null;
+        let currentSignalingServer = null;
         
         // Generate or retrieve persistent device ID
         function initializeDeviceId() {
@@ -432,6 +433,60 @@
             deviceIdInput.title = 'Device ID is automatically generated and cannot be changed';
             
             return deviceId;
+        }
+        
+        // Initialize persistent signaling server URL
+        function initializeSignalingServer() {
+            const SIGNALING_SERVER_KEY = 'dnn_signaling_server';
+            let signalingUrl = localStorage.getItem(SIGNALING_SERVER_KEY);
+            
+            // Default signaling server URLs based on environment
+            const defaultUrls = [
+                'ws://localhost:8080',
+                'wss://neural-signaling-server.herokuapp.com'
+            ];
+            
+            if (!signalingUrl) {
+                // Try to detect if we're running locally or on GitHub Pages
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                signalingUrl = isLocal ? defaultUrls[0] : defaultUrls[1];
+                
+                localStorage.setItem(SIGNALING_SERVER_KEY, signalingUrl);
+                addLog(`🌐 Set default signaling server: ${signalingUrl}`, 'info');
+            } else {
+                addLog(`🌐 Retrieved saved signaling server: ${signalingUrl}`, 'info');
+            }
+            
+            currentSignalingServer = signalingUrl;
+            const signalingInput = document.getElementById('signalingServerUrl');
+            signalingInput.value = signalingUrl;
+            signalingInput.title = 'Signaling server URL (editable, auto-saved)';
+            
+            return signalingUrl;
+        }
+        
+        // Monitor and save signaling server URL changes
+        function monitorSignalingServerChanges() {
+            const signalingInput = document.getElementById('signalingServerUrl');
+            
+            // Save changes to localStorage when user modifies the URL
+            signalingInput.addEventListener('input', (e) => {
+                const newUrl = e.target.value.trim();
+                if (newUrl !== currentSignalingServer) {
+                    currentSignalingServer = newUrl;
+                    localStorage.setItem('dnn_signaling_server', newUrl);
+                    addLog(`💾 Signaling server URL saved: ${newUrl}`, 'info');
+                }
+            });
+            
+            // Also save on blur (when user clicks away)
+            signalingInput.addEventListener('blur', (e) => {
+                const newUrl = e.target.value.trim();
+                if (newUrl && newUrl !== localStorage.getItem('dnn_signaling_server')) {
+                    localStorage.setItem('dnn_signaling_server', newUrl);
+                    addLog(`💾 Signaling server URL updated: ${newUrl}`, 'info');
+                }
+            });
         }
         
         // Monitor for device ID tampering attempts
@@ -831,13 +886,20 @@
         
         // P2P Networking event handlers
         document.getElementById('configureSignaling').addEventListener('click', () => {
-            const signalingUrl = document.getElementById('signalingServerUrl').value.trim();
+            const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
             if (network && signalingUrl) {
                 try {
                     const success = network.configure_signaling_server(signalingUrl);
                     if (success) {
                         addLog(`🌐 Configured signaling server: ${signalingUrl}`, 'p2p');
                         setStatus('🟢 Signaling server configured', 'ready');
+                        
+                        // Save the URL if it's different
+                        if (signalingUrl !== currentSignalingServer) {
+                            currentSignalingServer = signalingUrl;
+                            localStorage.setItem('dnn_signaling_server', signalingUrl);
+                            addLog(`💾 Signaling server URL saved: ${signalingUrl}`, 'info');
+                        }
                     } else {
                         addLog('❌ Failed to configure signaling server', 'error');
                     }
@@ -854,10 +916,13 @@
         document.getElementById('startDiscovery').addEventListener('click', () => {
             if (network) {
                 // Configure signaling server before starting discovery if not already configured
-                const signalingUrl = document.getElementById('signalingServerUrl').value.trim();
+                const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
                 if (signalingUrl) {
                     network.configure_signaling_server(signalingUrl);
                     addLog(`🌐 Using signaling server: ${signalingUrl}`, 'p2p');
+                } else {
+                    addLog('❌ No signaling server configured', 'error');
+                    return;
                 }
                 
                 const success = network.start_peer_discovery();
@@ -1104,11 +1169,16 @@
                 initializeDeviceId();
                 monitorDeviceIdChanges();
                 
+                // Initialize signaling server URL
+                initializeSignalingServer();
+                monitorSignalingServerChanges();
+                
                 await init();
                 setStatus('🟢 WASM module loaded successfully', 'ready');
                 addLog('Distributed Neural Network with Blockchain WASM module initialized');
                 addLog('Ready to create networks and process data');
                 addLog(`🔒 Device ID locked: ${currentDeviceId}`, 'info');
+                addLog(`🌐 Signaling server ready: ${currentSignalingServer}`, 'info');
                 
                 // Enable controls
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
