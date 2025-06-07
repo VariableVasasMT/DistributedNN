@@ -50,6 +50,20 @@ pub struct PeerInfo {
     pub reputation_score: f64,
     pub last_seen: f64,
     pub cluster_specializations: Vec<String>,
+    pub node_status: NodeStatus,
+    pub active_connections: u32,
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+    pub available_nodes: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NodeStatus {
+    pub is_processing: bool,
+    pub active_queries: u32,
+    pub last_activity: f64,
+    pub processing_load: f64, // 0.0 to 1.0
+    pub is_available: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -226,7 +240,7 @@ impl P2PNetwork {
         let onopen = Closure::wrap(Box::new(move |_event: web_sys::Event| {
             console_log!("✅ Connected to signaling server");
             
-            // Register with the server
+            // Register with the server including node status
             let registration_message = serde_json::json!({
                 "type": "register",
                 "data": {
@@ -236,9 +250,20 @@ impl P2PNetwork {
                         "ip_address": "browser_client",
                         "port": 0,
                         "public_key": format!("{}_public_key", device_id_clone),
-                        "capabilities": ["memory_sharing", "collaborative_learning", "webrtc_p2p"],
+                        "capabilities": ["memory_sharing", "collaborative_learning", "webrtc_p2p", "neural_processing"],
                         "reputation_score": 1.0,
-                        "cluster_specializations": ["general", "browser_based"]
+                        "cluster_specializations": ["general", "browser_based"],
+                        "node_status": {
+                            "is_processing": false,
+                            "active_queries": 0,
+                            "last_activity": js_sys::Date::now(),
+                            "processing_load": 0.0,
+                            "is_available": true
+                        },
+                        "active_connections": 0,
+                        "cpu_usage": 0.2, // Simulated low usage for browser
+                        "memory_usage": 0.3, // Simulated low usage for browser  
+                        "available_nodes": 5 // Number of neural nodes available for processing
                     }
                 }
             });
@@ -1012,6 +1037,100 @@ impl P2PNetwork {
             .count();
 
         healthy_connections as f64 / self.active_connections.len() as f64
+    }
+
+    #[wasm_bindgen]
+    pub fn find_free_nodes(&self) -> String {
+        console_log!("🔍 Searching for free nodes among {} peers", self.peer_registry.len());
+        
+        let free_peers: Vec<&PeerInfo> = self.peer_registry.values()
+            .filter(|peer| {
+                // A node is considered "free" if:
+                // 1. It's available and online
+                // 2. Not actively processing
+                // 3. Has low processing load
+                // 4. Has available nodes
+                // 5. Low CPU/memory usage
+                peer.node_status.is_available &&
+                !peer.node_status.is_processing &&
+                peer.node_status.active_queries == 0 &&
+                peer.node_status.processing_load < 0.3 &&
+                peer.available_nodes > 0 &&
+                peer.cpu_usage < 0.7 &&
+                peer.memory_usage < 0.8 &&
+                peer.device_id != self.device_id // Don't connect to ourselves
+            })
+            .collect();
+        
+        console_log!("✅ Found {} free nodes available for processing", free_peers.len());
+        
+        for peer in &free_peers {
+            console_log!("🟢 Free node: {} - Load: {:.1}%, CPU: {:.1}%, Memory: {:.1}%, Available nodes: {}", 
+                peer.device_id, 
+                peer.node_status.processing_load * 100.0,
+                peer.cpu_usage * 100.0, 
+                peer.memory_usage * 100.0,
+                peer.available_nodes
+            );
+        }
+        
+        serde_json::to_string(&free_peers).unwrap_or_default()
+    }
+    
+    #[wasm_bindgen]
+    pub async fn auto_connect_to_free_node(&mut self) -> String {
+        console_log!("🎯 Auto-selecting random free node for connection");
+        
+        let free_nodes_json = self.find_free_nodes();
+        match serde_json::from_str::<Vec<PeerInfo>>(&free_nodes_json) {
+            Ok(free_nodes) => {
+                if free_nodes.is_empty() {
+                    console_log!("❌ No free nodes available for connection");
+                    return "".to_string();
+                }
+                
+                // Select random free node
+                let random_index = (js_sys::Math::random() * free_nodes.len() as f64) as usize;
+                let selected_node = &free_nodes[random_index];
+                
+                console_log!("🎯 Auto-selected free node: {} (Load: {:.1}%, Available nodes: {})", 
+                    selected_node.device_id,
+                    selected_node.node_status.processing_load * 100.0,
+                    selected_node.available_nodes
+                );
+                
+                // Initiate WebRTC connection to the selected free node
+                if self.initiate_webrtc_connection(selected_node.device_id.clone()).await {
+                    console_log!("✅ Successfully initiated connection to free node: {}", selected_node.device_id);
+                    selected_node.device_id.clone()
+                } else {
+                    console_log!("❌ Failed to connect to free node: {}", selected_node.device_id);
+                    "".to_string()
+                }
+            },
+            Err(e) => {
+                console_log!("❌ Failed to parse free nodes: {:?}", e);
+                "".to_string()
+            }
+        }
+    }
+    
+    #[wasm_bindgen]
+    pub fn get_node_availability_stats(&self) -> String {
+        let total_peers = self.peer_registry.len();
+        let free_nodes = serde_json::from_str::<Vec<PeerInfo>>(&self.find_free_nodes())
+            .unwrap_or_default()
+            .len();
+        let busy_nodes = total_peers - free_nodes;
+        
+        let stats = serde_json::json!({
+            "total_peers": total_peers,
+            "free_nodes": free_nodes,
+            "busy_nodes": busy_nodes,
+            "availability_ratio": if total_peers > 0 { free_nodes as f64 / total_peers as f64 } else { 0.0 }
+        });
+        
+        serde_json::to_string(&stats).unwrap_or_default()
     }
 }
 

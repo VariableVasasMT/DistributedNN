@@ -299,8 +299,8 @@
                 </div>
                 <div class="control-row">
                     <button id="startDiscovery" class="btn btn-secondary">Start Peer Discovery</button>
-                    <input type="text" id="targetPeerId" placeholder="Target Peer ID" value="demo_device_002" style="width: 200px;">
-                    <button id="initiateWebRTC" class="btn btn-accent">Initiate WebRTC Connection</button>
+                    <button id="autoConnectFreeNode" class="btn btn-accent">🎯 Auto-Connect to Free Node</button>
+                    <button id="checkNodeAvailability" class="btn btn-secondary">Check Node Availability</button>
                     <button id="closeWebRTCConnection" class="btn btn-danger">Close Connection</button>
                 </div>
                 <div class="control-row">
@@ -394,6 +394,19 @@
         <div class="chart-container">
             <h4>📝 System Log</h4>
             <div id="logContainer" class="log-container"></div>
+        </div>
+
+        <div class="node-availability" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <h4>🔍 Node Availability Status:</h4>
+            <div id="nodeAvailabilityStats">
+                <div>Total Peers: <span id="totalPeers">0</span></div>
+                <div>Free Nodes: <span id="freeNodes" style="color: #4CAF50;">0</span></div>
+                <div>Busy Nodes: <span id="busyNodes" style="color: #FF9800;">0</span></div>
+                <div>Availability: <span id="availabilityRatio">0%</span></div>
+            </div>
+            <div id="currentConnection" style="margin-top: 10px;">
+                <strong>Connected to:</strong> <span id="connectedPeer" style="color: #00BCD4;">None</span>
+            </div>
         </div>
     </div>
 
@@ -1036,32 +1049,28 @@
                     clearInterval(pollInterval);
                     addLog(`🔍 Found ${peers.length} real peers from signaling server!`, 'p2p');
                     
-                    // Process real peers
-                    updateDiscoveredPeers(peers);
+                    // Process the discovered peers to update node registry
+                    network.handle_discovery_results(JSON.stringify(peers));
                     
-                    // Auto-select and connect to a random real peer
-                    if (peers.length > 0) {
-                        const randomIndex = Math.floor(Math.random() * peers.length);
-                        const selectedPeer = peers[randomIndex];
-                        
-                        addLog(`🎯 Auto-selected real peer: ${selectedPeer.device_id}`, 'p2p');
-                        addLog(`📋 Real peer capabilities: ${selectedPeer.capabilities.join(', ')}`, 'info');
-                        
-                        // Set the target peer ID in the input
-                        document.getElementById('targetPeerId').value = selectedPeer.device_id;
-                        
-                        // Automatically initiate WebRTC connection to real peer
-                        setTimeout(() => {
-                            addLog(`🤝 Auto-connecting to real peer: ${selectedPeer.device_id}`, 'p2p');
-                            const connectionSuccess = network.initiate_webrtc_connection(selectedPeer.device_id);
-                            if (connectionSuccess) {
-                                addLog(`✅ WebRTC connection initiated to real peer: ${selectedPeer.device_id}`, 'p2p');
-                                setStatus('🌐 WebRTC connecting to real peer', 'connecting');
+                    // Now find free nodes among discovered peers
+                    addLog('🔍 Checking which discovered peers are free...', 'p2p');
+                    
+                    setTimeout(async () => {
+                        try {
+                            const connectedPeerId = await network.auto_connect_to_free_node();
+                            if (connectedPeerId) {
+                                addLog(`✅ Auto-connected to free peer: ${connectedPeerId}`, 'p2p');
+                                setStatus('🟢 Connected to free peer', 'ready');
+                                document.getElementById('connectedPeer').textContent = connectedPeerId;
+                                updateNodeAvailabilityStats();
                             } else {
-                                addLog(`❌ Failed to initiate WebRTC connection to real peer: ${selectedPeer.device_id}`, 'error');
+                                addLog('⚠️ No free nodes among discovered peers', 'warning');
+                                addLog('💡 All discovered peers are currently busy processing', 'info');
                             }
-                        }, 1000); // Wait 1 second before connecting
-                    }
+                        } catch (error) {
+                            addLog(`❌ Auto-connection failed: ${error.message}`, 'error');
+                        }
+                    }, 500); // Brief delay to allow node status processing
                 } else if (pollCount >= maxPolls) {
                     clearInterval(pollInterval);
                     addLog('🔍 No real peers found after 5 seconds. Try opening another browser tab/window.', 'warning');
@@ -1078,13 +1087,10 @@
                 return;
             }
             
-            const selectedPeerId = document.getElementById('targetPeerId').value;
-            
             peerContainer.innerHTML = peers.map(peer => {
-                const isSelected = peer.device_id === selectedPeerId;
-                const bgColor = isSelected ? 'rgba(255, 215, 0, 0.3)' : 'rgba(255, 255, 255, 0.1)';
-                const borderColor = isSelected ? '#ffd700' : 'transparent';
-                const selectedLabel = isSelected ? ' 🎯 [AUTO-SELECTED]' : '';
+                const bgColor = 'rgba(255, 255, 255, 0.1)';
+                const borderColor = 'transparent';
+                const selectedLabel = '';
                 
                 return `
                     <div style="background: ${bgColor}; border: 2px solid ${borderColor}; padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
@@ -1093,7 +1099,7 @@
                               <small style="color: rgba(255,255,255,0.6);">Specializations: ${peer.cluster_specializations ? peer.cluster_specializations.join(', ') : 'None'}</small>
                         </span>
                         <button onclick="connectToPeer('${peer.device_id}')" style="padding: 5px 10px; background: #9C27B0; color: white; border: none; border-radius: 3px; cursor: pointer;">
-                            ${isSelected ? 'Selected' : 'Connect'}
+                            Connect
                         </button>
                     </div>
                 `;
@@ -1101,39 +1107,94 @@
         }
 
         window.connectToPeer = function(peerId) {
-            document.getElementById('targetPeerId').value = peerId;
             if (webrtcManager) {
                 addLog(`🔗 Initiating WebRTC connection to: ${peerId}`, 'p2p');
                 // This would trigger the WebRTC connection process
-                document.getElementById('initiateWebRTC').click();
+                document.getElementById('autoConnectFreeNode').click();
             }
         };
 
-        document.getElementById('initiateWebRTC').addEventListener('click', () => {
-            const peerId = document.getElementById('targetPeerId').value;
-            if (network && peerId) {
-                const success = network.initiate_webrtc_connection(peerId);
-                if (success) {
-                    addLog(`🤝 Initiated WebRTC connection to peer: ${peerId}`, 'p2p');
-                    setStatus('🌐 WebRTC connected', 'ready');
+        document.getElementById('autoConnectFreeNode').addEventListener('click', async () => {
+            if (!network) {
+                addLog('❌ Create a network first!', 'error');
+                return;
+            }
+            
+            addLog('🎯 Searching for free nodes...', 'p2p');
+            setStatus('🔍 Finding free nodes', 'connecting');
+            
+            try {
+                const connectedPeerId = await network.auto_connect_to_free_node();
+                if (connectedPeerId) {
+                    addLog(`✅ Auto-connected to free node: ${connectedPeerId}`, 'p2p');
+                    setStatus('🟢 Connected to free node', 'ready');
+                    document.getElementById('connectedPeer').textContent = connectedPeerId;
+                    
+                    // Update node availability stats
+                    updateNodeAvailabilityStats();
                 } else {
-                    addLog(`❌ Failed to initiate WebRTC connection to peer: ${peerId}`, 'error');
+                    addLog('❌ No free nodes available for connection', 'warning');
+                    setStatus('🟡 No free nodes found', 'ready');
                 }
+            } catch (error) {
+                addLog(`❌ Failed to auto-connect: ${error.message}`, 'error');
+                setStatus('❌ Auto-connection failed', 'error');
             }
         });
 
-        document.getElementById('closeWebRTCConnection').addEventListener('click', () => {
-            const peerId = document.getElementById('targetPeerId').value;
-            if (network && peerId) {
-                const success = network.close_webrtc_connection(peerId);
-                if (success) {
-                    addLog(`🔒 Closed WebRTC connection to peer: ${peerId}`, 'p2p');
-                    setStatus('🌐 WebRTC disconnected', 'ready');
-                } else {
-                    addLog(`❌ Failed to close WebRTC connection to peer: ${peerId}`, 'error');
+        document.getElementById('checkNodeAvailability').addEventListener('click', () => {
+            if (!network) {
+                addLog('❌ Create a network first!', 'error');
+                return;
+            }
+            
+            addLog('📊 Checking node availability...', 'info');
+            updateNodeAvailabilityStats();
+            
+            const freeNodesJson = network.find_free_nodes();
+            try {
+                const freeNodes = JSON.parse(freeNodesJson);
+                addLog(`🔍 Found ${freeNodes.length} free nodes available for processing`, 'p2p');
+                
+                freeNodes.forEach(node => {
+                    addLog(`🟢 Free node: ${node.device_id} - Load: ${(node.node_status.processing_load * 100).toFixed(1)}%, Available nodes: ${node.available_nodes}`, 'info');
+                });
+                
+                if (freeNodes.length === 0) {
+                    addLog('⚠️ No free nodes currently available. All peers are busy.', 'warning');
                 }
+            } catch (e) {
+                addLog('❌ Failed to parse free nodes data', 'error');
             }
         });
+
+        function updateNodeAvailabilityStats() {
+            if (!network) return;
+            
+            try {
+                const statsJson = network.get_node_availability_stats();
+                const stats = JSON.parse(statsJson);
+                
+                document.getElementById('totalPeers').textContent = stats.total_peers || 0;
+                document.getElementById('freeNodes').textContent = stats.free_nodes || 0;
+                document.getElementById('busyNodes').textContent = stats.busy_nodes || 0;
+                document.getElementById('availabilityRatio').textContent = 
+                    `${Math.round((stats.availability_ratio || 0) * 100)}%`;
+                
+                // Update color based on availability
+                const availabilityElement = document.getElementById('availabilityRatio');
+                const ratio = stats.availability_ratio || 0;
+                if (ratio > 0.7) {
+                    availabilityElement.style.color = '#4CAF50'; // Green
+                } else if (ratio > 0.3) {
+                    availabilityElement.style.color = '#FF9800'; // Orange
+                } else {
+                    availabilityElement.style.color = '#F44336'; // Red
+                }
+            } catch (e) {
+                console.warn('Failed to update node availability stats:', e);
+            }
+        }
 
         document.getElementById('sendDirectMessage').addEventListener('click', () => {
             const message = document.getElementById('messageText').value;
@@ -1358,6 +1419,9 @@
                     // Monitor auto-connection progress
                     monitorAutoConnection();
                     
+                    // Update node availability stats
+                    updateNodeAvailabilityStats();
+                    
                     // Process training
                     network.step_simulation(16.0); // ~60fps
                 }
@@ -1366,6 +1430,23 @@
         
         // Start the update loop
         setInterval(updateDisplay, 1000); // Update every second
+
+        document.getElementById('closeWebRTCConnection').addEventListener('click', () => {
+            const connectedPeer = document.getElementById('connectedPeer').textContent;
+            if (network && connectedPeer !== 'None') {
+                const success = network.close_webrtc_connection(connectedPeer);
+                if (success) {
+                    addLog(`🔒 Closed WebRTC connection to peer: ${connectedPeer}`, 'p2p');
+                    setStatus('🌐 WebRTC disconnected', 'ready');
+                    document.getElementById('connectedPeer').textContent = 'None';
+                    updateNodeAvailabilityStats();
+                } else {
+                    addLog(`❌ Failed to close WebRTC connection to peer: ${connectedPeer}`, 'error');
+                }
+            } else {
+                addLog('❌ No active connection to close', 'warning');
+            }
+        });
     </script>
 </body>
 </html> 
