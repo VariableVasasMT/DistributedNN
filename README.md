@@ -85,6 +85,9 @@ node signaling-server.js
 python3 -m http.server 8000
 
 # Visit: http://localhost:8000/demo.html
+
+# When ready, push to deploy both services:
+git push origin main
 ```
 
 ### **GitHub Pages Deployment**
@@ -93,15 +96,19 @@ The project automatically deploys to GitHub Pages on every push to `main`:
 - **Auto-build:** GitHub Actions compiles WASM and deploys
 - **Source:** `docs/` directory serves the web content
 
-### **Deploy Your Own Signaling Server**
-```bash
-# The signaling server only handles peer discovery - no data passes through it
-cd distributedNN
-node signaling-server.js
+### **Heroku Signaling Server**
+The signaling server automatically deploys to Heroku from the same repository:
+- **Server URL:** https://neural-signaling-server.herokuapp.com
+- **Auto-deploy:** Heroku deploys from root directory on push to `main`
+- **Source:** `signaling-server.js`, `package.json`, `Procfile` in root
 
-# Deploy to Heroku (optional)
-heroku create your-neural-signaling-server
-git push heroku main
+### **Single Branch Deployment**
+```bash
+# One push deploys everything:
+git push origin main
+
+# ✅ GitHub Pages: Deploys docs/ to https://variablevasasmt.github.io/distributedNN
+# ✅ Heroku: Deploys signaling server to https://neural-signaling-server.herokuapp.com
 ```
 
 ## 🌍 **Network Architecture Details**

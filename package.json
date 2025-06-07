@@ -1,35 +1,32 @@
 {
   "name": "distributed-neural-network-signaling-server",
   "version": "1.0.0",
-  "description": "WebSocket signaling server for distributed neural network P2P connections",
+  "description": "WebRTC signaling server for distributed neural network P2P connections",
   "main": "signaling-server.js",
   "scripts": {
     "start": "node signaling-server.js",
-    "dev": "nodemon signaling-server.js",
-    "build": "./build.sh",
-    "build:wasm": "wasm-pack build --target web --out-dir docs/pkg",
-    "build:docs": "cp demo.html docs/index.html",
-    "deploy": "npm run build && git add . && git commit -m 'Deploy updates' && git push origin main",
-    "serve": "python3 -m http.server 8000",
-    "test:local": "echo 'Open http://localhost:8000/demo.html in multiple tabs' && npm run serve"
-  },
-  "keywords": [
-    "p2p",
-    "webrtc",
-    "neural-network",
-    "distributed",
-    "blockchain",
-    "signaling"
-  ],
-  "author": "Kritivasas",
-  "license": "MIT",
-  "dependencies": {
-    "ws": "^8.14.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+    "dev": "node signaling-server.js",
+    "build": "echo 'No build needed for signaling server - it is pure Node.js'"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "keywords": [
+    "webrtc",
+    "signaling",
+    "p2p",
+    "neural-network",
+    "distributed",
+    "websocket"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/variablevasasmt/distributedNN.git"
   }
 } 

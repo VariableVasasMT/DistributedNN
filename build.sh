@@ -161,6 +161,9 @@ node signaling-server.js
 python3 -m http.server 8000
 
 # Visit: http://localhost:8000/demo.html
+
+# When ready, push to deploy both services:
+git push origin main
 ```
 
 ### **GitHub Pages Deployment**
@@ -169,15 +172,19 @@ The project automatically deploys to GitHub Pages on every push to `main`:
 - **Auto-build:** GitHub Actions compiles WASM and deploys
 - **Source:** `docs/` directory serves the web content
 
-### **Deploy Your Own Signaling Server**
-```bash
-# The signaling server only handles peer discovery - no data passes through it
-cd distributedNN
-node signaling-server.js
+### **Heroku Signaling Server**
+The signaling server automatically deploys to Heroku from the same repository:
+- **Server URL:** https://neural-signaling-server.herokuapp.com
+- **Auto-deploy:** Heroku deploys from root directory on push to `main`
+- **Source:** `signaling-server.js`, `package.json`, `Procfile` in root
 
-# Deploy to Heroku (optional)
-heroku create your-neural-signaling-server
-git push heroku main
+### **Single Branch Deployment**
+```bash
+# One push deploys everything:
+git push origin main
+
+# ✅ GitHub Pages: Deploys docs/ to https://variablevasasmt.github.io/distributedNN
+# ✅ Heroku: Deploys signaling server to https://neural-signaling-server.herokuapp.com
 ```
 
 ## 🌍 **Network Architecture Details**
@@ -276,7 +283,46 @@ EOF
 
 log_success "README.md updated with True P2P WebRTC documentation"
 
-# Step 7: Ensure docs directory structure is correct for GitHub Pages
+# Step 7: Verify deployment configuration
+log_info "Verifying deployment configuration..."
+
+# Check if necessary files exist for Heroku
+if [ ! -f "package.json" ]; then
+    log_error "package.json not found - needed for Heroku deployment"
+    exit 1
+fi
+
+if [ ! -f "Procfile" ]; then
+    log_error "Procfile not found - needed for Heroku deployment"
+    exit 1
+fi
+
+if [ ! -f "signaling-server.js" ]; then
+    log_error "signaling-server.js not found - needed for Heroku deployment"
+    exit 1
+fi
+
+# Check if docs directory exists for GitHub Pages
+if [ ! -d "docs" ]; then
+    log_error "docs/ directory not found - needed for GitHub Pages"
+    exit 1
+fi
+
+if [ ! -f "docs/index.html" ]; then
+    log_error "docs/index.html not found - needed for GitHub Pages"
+    exit 1
+fi
+
+if [ ! -d "docs/pkg" ]; then
+    log_error "docs/pkg/ directory not found - needed for GitHub Pages WASM"
+    exit 1
+fi
+
+log_success "✅ Repository configured for dual deployment:"
+log_success "   📄 GitHub Pages: docs/ folder"
+log_success "   📡 Heroku: root folder (signaling server)"
+
+# Step 8: Ensure docs directory structure is correct for GitHub Pages
 log_info "Ensuring docs structure is correct for GitHub Pages..."
 if [ ! -d "docs/pkg" ]; then
     mkdir -p docs/pkg
@@ -300,16 +346,24 @@ else
         
         # Ask if user wants to push
         echo ""
-        read -p "🌐 Push changes to GitHub? (y/N): " -n 1 -r
+        read -p "🌐 Push changes to GitHub? This will deploy both GitHub Pages AND Heroku signaling server (y/N): " -n 1 -r
         echo ""
         
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             log_info "Pushing to GitHub..."
             if git push origin main; then
                 log_success "🌐 Changes pushed to GitHub!"
-                log_success "📄 GitHub Actions will build and deploy automatically"
+                log_success "📄 GitHub Actions will build and deploy GitHub Pages automatically"
+                log_success "📡 Heroku will also deploy the signaling server automatically"
                 log_success "🔗 Live demo: https://variablevasasmt.github.io/distributedNN"
+                log_success "📡 Signaling server: https://neural-signaling-server.herokuapp.com"
                 log_info "⏱️  Deployment usually takes 2-3 minutes to complete"
+                
+                # Check Heroku deployment status
+                echo ""
+                log_info "🔍 To check Heroku deployment:"
+                log_info "   heroku logs --tail -a neural-signaling-server"
+                log_info "   heroku ps -a neural-signaling-server"
             else
                 log_error "Failed to push to GitHub"
             fi
@@ -321,7 +375,7 @@ else
     fi
 fi
 
-# Step 8: Start local server if requested
+# Step 9: Start local server if requested
 echo ""
 read -p "🖥️  Start local development server? (y/N): " -n 1 -r
 echo ""
