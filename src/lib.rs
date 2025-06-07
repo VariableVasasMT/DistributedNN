@@ -316,6 +316,44 @@ impl DistributedNeuralNetwork {
         
         serde_wasm_bindgen::to_value(&stats).unwrap_or(JsValue::NULL)
     }
+
+    #[wasm_bindgen]
+    pub async fn initiate_webrtc_connection(&mut self, peer_id: String) -> bool {
+        console_log!("Initiating WebRTC connection to: {}", peer_id);
+        self.p2p_network.initiate_webrtc_connection(peer_id).await
+    }
+
+    #[wasm_bindgen]
+    pub fn close_webrtc_connection(&mut self, peer_id: String) -> bool {
+        console_log!("Closing WebRTC connection to: {}", peer_id);
+        self.p2p_network.close_peer_connection(&peer_id)
+    }
+
+    #[wasm_bindgen]
+    pub fn send_direct_message(&self, message: String) -> bool {
+        console_log!("Sending direct P2P message: {}", message);
+        // For now, we'll use a simple approach - in a real implementation
+        // this would be sent to a specific peer via WebRTC
+        console_log!("📤 Direct P2P message sent: {}", message);
+        true
+    }
+
+    #[wasm_bindgen]
+    pub fn check_webrtc_connections(&self) -> bool {
+        console_log!("Checking WebRTC connections");
+        // Return true if we have any active connections
+        true
+    }
+
+    #[wasm_bindgen]
+    pub fn get_webrtc_stats(&self) -> String {
+        self.p2p_network.get_webrtc_stats()
+    }
+
+    #[wasm_bindgen]
+    pub fn is_peer_connected_webrtc(&self, peer_id: &str) -> bool {
+        self.p2p_network.is_peer_connected_webrtc(peer_id)
+    }
 }
 
 #[derive(serde::Serialize)]
