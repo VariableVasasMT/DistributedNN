@@ -1052,23 +1052,44 @@
                     // Process the discovered peers to update node registry
                     network.handle_discovery_results(JSON.stringify(peers));
                     
+                    // Update the peer display
+                    updateDiscoveredPeers(peers);
+                    
                     // Now find free nodes among discovered peers
                     addLog('🔍 Checking which discovered peers are free...', 'p2p');
                     
                     setTimeout(async () => {
                         try {
-                            const connectedPeerId = await network.auto_connect_to_free_node();
-                            if (connectedPeerId) {
-                                addLog(`✅ Auto-connected to free peer: ${connectedPeerId}`, 'p2p');
-                                setStatus('🟢 Connected to free peer', 'ready');
-                                document.getElementById('connectedPeer').textContent = connectedPeerId;
-                                updateNodeAvailabilityStats();
+                            if (typeof network.auto_connect_to_free_node === 'function') {
+                                const connectedPeerId = await network.auto_connect_to_free_node();
+                                if (connectedPeerId) {
+                                    addLog(`✅ Auto-connected to free peer: ${connectedPeerId}`, 'p2p');
+                                    setStatus('🟢 Connected to free peer', 'ready');
+                                    document.getElementById('connectedPeer').textContent = connectedPeerId;
+                                    updateNodeAvailabilityStats();
+                                } else {
+                                    addLog('⚠️ No free nodes among discovered peers', 'warning');
+                                    addLog('💡 All discovered peers are currently busy processing', 'info');
+                                }
                             } else {
-                                addLog('⚠️ No free nodes among discovered peers', 'warning');
-                                addLog('💡 All discovered peers are currently busy processing', 'info');
+                                // Fallback: auto-connect to random peer (old behavior)
+                                addLog('⚠️ Free node detection not available, using random selection', 'warning');
+                                const randomIndex = Math.floor(Math.random() * peers.length);
+                                const selectedPeer = peers[randomIndex];
+                                
+                                addLog(`🎯 Auto-selected peer: ${selectedPeer.device_id}`, 'p2p');
+                                const connectionSuccess = await network.initiate_webrtc_connection(selectedPeer.device_id);
+                                if (connectionSuccess) {
+                                    addLog(`✅ WebRTC connection initiated to peer: ${selectedPeer.device_id}`, 'p2p');
+                                    setStatus('🌐 WebRTC connecting to peer', 'connecting');
+                                    document.getElementById('connectedPeer').textContent = selectedPeer.device_id;
+                                } else {
+                                    addLog(`❌ Failed to initiate WebRTC connection to peer: ${selectedPeer.device_id}`, 'error');
+                                }
                             }
                         } catch (error) {
                             addLog(`❌ Auto-connection failed: ${error.message}`, 'error');
+                            addLog('💡 Try rebuilding WASM module with "./build.sh"', 'info');
                         }
                     }, 500); // Brief delay to allow node status processing
                 } else if (pollCount >= maxPolls) {
@@ -1124,20 +1145,47 @@
             setStatus('🔍 Finding free nodes', 'connecting');
             
             try {
-                const connectedPeerId = await network.auto_connect_to_free_node();
-                if (connectedPeerId) {
-                    addLog(`✅ Auto-connected to free node: ${connectedPeerId}`, 'p2p');
-                    setStatus('🟢 Connected to free node', 'ready');
-                    document.getElementById('connectedPeer').textContent = connectedPeerId;
-                    
-                    // Update node availability stats
-                    updateNodeAvailabilityStats();
+                if (typeof network.auto_connect_to_free_node === 'function') {
+                    const connectedPeerId = await network.auto_connect_to_free_node();
+                    if (connectedPeerId) {
+                        addLog(`✅ Auto-connected to free node: ${connectedPeerId}`, 'p2p');
+                        setStatus('🟢 Connected to free node', 'ready');
+                        document.getElementById('connectedPeer').textContent = connectedPeerId;
+                        
+                        // Update node availability stats
+                        updateNodeAvailabilityStats();
+                    } else {
+                        addLog('❌ No free nodes available for connection', 'warning');
+                        setStatus('🟡 No free nodes found', 'ready');
+                    }
                 } else {
-                    addLog('❌ No free nodes available for connection', 'warning');
-                    setStatus('🟡 No free nodes found', 'ready');
+                    // Fallback: connect to any discovered peer
+                    addLog('⚠️ Free node detection not available, using fallback connection', 'warning');
+                    const peersJson = network.get_discovered_peers();
+                    const peers = JSON.parse(peersJson);
+                    
+                    if (peers.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * peers.length);
+                        const selectedPeer = peers[randomIndex];
+                        
+                        addLog(`🎯 Fallback: connecting to random peer: ${selectedPeer.device_id}`, 'p2p');
+                        const success = await network.initiate_webrtc_connection(selectedPeer.device_id);
+                        if (success) {
+                            addLog(`✅ Connected to peer: ${selectedPeer.device_id}`, 'p2p');
+                            setStatus('🟢 Connected to peer', 'ready');
+                            document.getElementById('connectedPeer').textContent = selectedPeer.device_id;
+                        } else {
+                            addLog(`❌ Failed to connect to peer: ${selectedPeer.device_id}`, 'error');
+                            setStatus('❌ Connection failed', 'error');
+                        }
+                    } else {
+                        addLog('❌ No peers available for connection', 'warning');
+                        setStatus('🟡 No peers found', 'ready');
+                    }
                 }
             } catch (error) {
                 addLog(`❌ Failed to auto-connect: ${error.message}`, 'error');
+                addLog('💡 Try rebuilding WASM module with "./build.sh"', 'info');
                 setStatus('❌ Auto-connection failed', 'error');
             }
         });
@@ -1151,8 +1199,8 @@
             addLog('📊 Checking node availability...', 'info');
             updateNodeAvailabilityStats();
             
-            const freeNodesJson = network.find_free_nodes();
             try {
+                const freeNodesJson = network.find_free_nodes();
                 const freeNodes = JSON.parse(freeNodesJson);
                 addLog(`🔍 Found ${freeNodes.length} free nodes available for processing`, 'p2p');
                 
@@ -1164,7 +1212,8 @@
                     addLog('⚠️ No free nodes currently available. All peers are busy.', 'warning');
                 }
             } catch (e) {
-                addLog('❌ Failed to parse free nodes data', 'error');
+                addLog('❌ Free node detection not available yet. Please rebuild WASM module.', 'error');
+                addLog('💡 Run "./build.sh" to rebuild with latest features.', 'info');
             }
         });
 
@@ -1172,27 +1221,42 @@
             if (!network) return;
             
             try {
-                const statsJson = network.get_node_availability_stats();
-                const stats = JSON.parse(statsJson);
-                
-                document.getElementById('totalPeers').textContent = stats.total_peers || 0;
-                document.getElementById('freeNodes').textContent = stats.free_nodes || 0;
-                document.getElementById('busyNodes').textContent = stats.busy_nodes || 0;
-                document.getElementById('availabilityRatio').textContent = 
-                    `${Math.round((stats.availability_ratio || 0) * 100)}%`;
-                
-                // Update color based on availability
-                const availabilityElement = document.getElementById('availabilityRatio');
-                const ratio = stats.availability_ratio || 0;
-                if (ratio > 0.7) {
-                    availabilityElement.style.color = '#4CAF50'; // Green
-                } else if (ratio > 0.3) {
-                    availabilityElement.style.color = '#FF9800'; // Orange
+                if (typeof network.get_node_availability_stats === 'function') {
+                    const statsJson = network.get_node_availability_stats();
+                    const stats = JSON.parse(statsJson);
+                    
+                    document.getElementById('totalPeers').textContent = stats.total_peers || 0;
+                    document.getElementById('freeNodes').textContent = stats.free_nodes || 0;
+                    document.getElementById('busyNodes').textContent = stats.busy_nodes || 0;
+                    document.getElementById('availabilityRatio').textContent = 
+                        `${Math.round((stats.availability_ratio || 0) * 100)}%`;
+                    
+                    // Update color based on availability
+                    const availabilityElement = document.getElementById('availabilityRatio');
+                    const ratio = stats.availability_ratio || 0;
+                    if (ratio > 0.7) {
+                        availabilityElement.style.color = '#4CAF50'; // Green
+                    } else if (ratio > 0.3) {
+                        availabilityElement.style.color = '#FF9800'; // Orange
+                    } else {
+                        availabilityElement.style.color = '#F44336'; // Red
+                    }
                 } else {
-                    availabilityElement.style.color = '#F44336'; // Red
+                    // Fallback: use basic peer count
+                    const peersJson = network.get_discovered_peers();
+                    const peers = JSON.parse(peersJson);
+                    document.getElementById('totalPeers').textContent = peers.length;
+                    document.getElementById('freeNodes').textContent = '?';
+                    document.getElementById('busyNodes').textContent = '?';
+                    document.getElementById('availabilityRatio').textContent = 'N/A';
                 }
             } catch (e) {
                 console.warn('Failed to update node availability stats:', e);
+                // Set fallback values
+                document.getElementById('totalPeers').textContent = '0';
+                document.getElementById('freeNodes').textContent = '?';
+                document.getElementById('busyNodes').textContent = '?';
+                document.getElementById('availabilityRatio').textContent = 'N/A';
             }
         }
 
@@ -1364,6 +1428,14 @@
                 addLog(`🔒 Device ID locked: ${currentDeviceId}`, 'info');
                 addLog(`🌐 Signaling server ready: ${currentSignalingServer}`, 'info');
                 
+                // Check if new features are available
+                if (network && typeof network.find_free_nodes === 'function') {
+                    addLog('✅ Advanced free node detection available', 'info');
+                } else {
+                    addLog('⚠️ Using fallback mode - rebuild WASM for advanced features', 'warning');
+                    addLog('💡 Run "./build.sh" to enable free node detection', 'info');
+                }
+                
                 // Enable controls
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
                 
@@ -1447,6 +1519,36 @@
                 addLog('❌ No active connection to close', 'warning');
             }
         });
+
+        function updateBlockchainStats() {
+            // Update blockchain metrics if available
+            if (network) {
+                try {
+                    const balance = network.get_account_balance();
+                    document.getElementById('accountBalanceMetric').textContent = balance.toFixed(2);
+                    
+                    const blockchainStats = network.get_blockchain_stats();
+                    if (blockchainStats) {
+                        document.getElementById('totalBlocksMetric').textContent = blockchainStats.total_blocks;
+                        document.getElementById('memoryCapsulesMetric').textContent = blockchainStats.total_memory_capsules;
+                    }
+                } catch (e) {
+                    // Blockchain stats not available yet, ignore silently
+                }
+            }
+        }
+        
+        function updateVectorDBStats() {
+            // Update vector database stats if available
+            if (network) {
+                try {
+                    // Vector DB stats would go here when implemented
+                    // For now, this is a placeholder
+                } catch (e) {
+                    // Vector DB stats not available yet, ignore silently
+                }
+            }
+        }
     </script>
 </body>
 </html> 
