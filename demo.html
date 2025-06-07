@@ -411,223 +411,205 @@
     </div>
 
     <script type="module">
-        import init, { DistributedNeuralNetwork, P2PNetwork, WebRTCManager } from './pkg/distributed_neural_network.js';
+        // Add cache busting to force reload of WASM module
+        const cacheBuster = Date.now();
+        const wasmModuleUrl = `./pkg/distributed_neural_network.js?v=${cacheBuster}`;
         
-        let network = null;
-        let webrtcManager = null;
-        let activityHistory = [];
-        let errorHistory = [];
-        let blockchainHistory = [];
-        let currentDeviceId = null;
-        let currentSignalingServer = null;
-        
-        // Generate or retrieve persistent device ID
-        function initializeDeviceId() {
-            const DEVICE_ID_KEY = 'dnn_device_id';
-            let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+        import(wasmModuleUrl).then(module => {
+            const { default: init, DistributedNeuralNetwork, P2PNetwork, WebRTCManager } = module;
             
-            if (!deviceId) {
-                // Generate random device ID with timestamp and random components
-                const timestamp = Date.now().toString(36);
-                const randomPart = Math.random().toString(36).substr(2, 8);
-                const deviceType = navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop';
-                deviceId = `${deviceType}_${timestamp}_${randomPart}`;
+            let network = null;
+            let webrtcManager = null;
+            let activityHistory = [];
+            let errorHistory = [];
+            let blockchainHistory = [];
+            let currentDeviceId = null;
+            let currentSignalingServer = null;
+            
+            // Generate or retrieve persistent device ID
+            function initializeDeviceId() {
+                const DEVICE_ID_KEY = 'dnn_device_id';
+                let deviceId = localStorage.getItem(DEVICE_ID_KEY);
                 
-                localStorage.setItem(DEVICE_ID_KEY, deviceId);
-                addLog(`🆔 Generated new device ID: ${deviceId}`, 'info');
-            } else {
-                addLog(`🆔 Retrieved existing device ID: ${deviceId}`, 'info');
-            }
-            
-            currentDeviceId = deviceId;
-            const deviceIdInput = document.getElementById('deviceId');
-            deviceIdInput.value = deviceId;
-            deviceIdInput.readOnly = true;
-            deviceIdInput.title = 'Device ID is automatically generated and cannot be changed';
-            
-            return deviceId;
-        }
-        
-        // Initialize persistent signaling server URL
-        function initializeSignalingServer() {
-            const SIGNALING_SERVER_KEY = 'dnn_signaling_server';
-            let signalingUrl = localStorage.getItem(SIGNALING_SERVER_KEY);
-            
-            // Default signaling server URLs based on environment
-            const defaultUrls = [
-                'ws://localhost:8080',
-                'wss://neural-signaling-server.herokuapp.com'
-            ];
-            
-            if (!signalingUrl) {
-                // Try to detect if we're running locally or on GitHub Pages
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                signalingUrl = isLocal ? defaultUrls[0] : defaultUrls[1];
-                
-                localStorage.setItem(SIGNALING_SERVER_KEY, signalingUrl);
-                addLog(`🌐 Set default signaling server: ${signalingUrl}`, 'info');
-            } else {
-                addLog(`🌐 Retrieved saved signaling server: ${signalingUrl}`, 'info');
-            }
-            
-            currentSignalingServer = signalingUrl;
-            const signalingInput = document.getElementById('signalingServerUrl');
-            signalingInput.value = signalingUrl;
-            signalingInput.title = 'Signaling server URL (editable, auto-saved)';
-            
-            return signalingUrl;
-        }
-        
-        // Monitor and save signaling server URL changes
-        function monitorSignalingServerChanges() {
-            const signalingInput = document.getElementById('signalingServerUrl');
-            
-            // Save changes to localStorage when user modifies the URL
-            signalingInput.addEventListener('input', (e) => {
-                const newUrl = e.target.value.trim();
-                if (newUrl !== currentSignalingServer) {
-                    currentSignalingServer = newUrl;
-                    localStorage.setItem('dnn_signaling_server', newUrl);
-                    addLog(`💾 Signaling server URL saved: ${newUrl}`, 'info');
-                }
-            });
-            
-            // Also save on blur (when user clicks away)
-            signalingInput.addEventListener('blur', (e) => {
-                const newUrl = e.target.value.trim();
-                if (newUrl && newUrl !== localStorage.getItem('dnn_signaling_server')) {
-                    localStorage.setItem('dnn_signaling_server', newUrl);
-                    addLog(`💾 Signaling server URL updated: ${newUrl}`, 'info');
-                }
-            });
-        }
-        
-        // Monitor for device ID tampering attempts
-        function monitorDeviceIdChanges() {
-            const deviceIdInput = document.getElementById('deviceId');
-            
-            // Prevent any changes to the device ID
-            deviceIdInput.addEventListener('input', (e) => {
-                if (e.target.value !== currentDeviceId) {
-                    addLog('⚠️ Device ID cannot be changed! Resetting...', 'warning');
-                    e.target.value = currentDeviceId;
+                if (!deviceId) {
+                    // Generate random device ID with timestamp and random components
+                    const timestamp = Date.now().toString(36);
+                    const randomPart = Math.random().toString(36).substr(2, 8);
+                    const deviceType = navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop';
+                    deviceId = `${deviceType}_${timestamp}_${randomPart}`;
                     
-                    // Reset network if it exists
-                    if (network) {
-                        addLog('🔄 Network reset due to device ID tampering attempt', 'warning');
-                        network = null;
-                        webrtcManager = null;
-                        setStatus('🔄 Network reset - create cluster again', 'loading');
+                    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+                    addLog(`🆔 Generated new device ID: ${deviceId}`, 'info');
+                } else {
+                    addLog(`🆔 Retrieved existing device ID: ${deviceId}`, 'info');
+                }
+                
+                currentDeviceId = deviceId;
+                const deviceIdInput = document.getElementById('deviceId');
+                deviceIdInput.value = deviceId;
+                deviceIdInput.readOnly = true;
+                deviceIdInput.title = 'Device ID is automatically generated and cannot be changed';
+                
+                return deviceId;
+            }
+            
+            // Initialize persistent signaling server URL
+            function initializeSignalingServer() {
+                const SIGNALING_SERVER_KEY = 'dnn_signaling_server';
+                let signalingUrl = localStorage.getItem(SIGNALING_SERVER_KEY);
+                
+                // Default signaling server URLs based on environment
+                const defaultUrls = [
+                    'ws://localhost:8080',
+                    'wss://neural-signaling-server.herokuapp.com'
+                ];
+                
+                if (!signalingUrl) {
+                    // Try to detect if we're running locally or on GitHub Pages
+                    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                    signalingUrl = isLocal ? defaultUrls[0] : defaultUrls[1];
+                    
+                    localStorage.setItem(SIGNALING_SERVER_KEY, signalingUrl);
+                    addLog(`🌐 Set default signaling server: ${signalingUrl}`, 'info');
+                } else {
+                    addLog(`🌐 Retrieved saved signaling server: ${signalingUrl}`, 'info');
+                }
+                
+                currentSignalingServer = signalingUrl;
+                const signalingInput = document.getElementById('signalingServerUrl');
+                signalingInput.value = signalingUrl;
+                signalingInput.title = 'Signaling server URL (editable, auto-saved)';
+                
+                return signalingUrl;
+            }
+            
+            // Monitor and save signaling server URL changes
+            function monitorSignalingServerChanges() {
+                const signalingInput = document.getElementById('signalingServerUrl');
+                
+                // Save changes to localStorage when user modifies the URL
+                signalingInput.addEventListener('input', (e) => {
+                    const newUrl = e.target.value.trim();
+                    if (newUrl !== currentSignalingServer) {
+                        currentSignalingServer = newUrl;
+                        localStorage.setItem('dnn_signaling_server', newUrl);
+                        addLog(`💾 Signaling server URL saved: ${newUrl}`, 'info');
+                    }
+                });
+                
+                // Also save on blur (when user clicks away)
+                signalingInput.addEventListener('blur', (e) => {
+                    const newUrl = e.target.value.trim();
+                    if (newUrl && newUrl !== localStorage.getItem('dnn_signaling_server')) {
+                        localStorage.setItem('dnn_signaling_server', newUrl);
+                        addLog(`💾 Signaling server URL updated: ${newUrl}`, 'info');
+                    }
+                });
+            }
+            
+            // Monitor for device ID tampering attempts
+            function monitorDeviceIdChanges() {
+                const deviceIdInput = document.getElementById('deviceId');
+                
+                // Prevent any changes to the device ID
+                deviceIdInput.addEventListener('input', (e) => {
+                    if (e.target.value !== currentDeviceId) {
+                        addLog('⚠️ Device ID cannot be changed! Resetting...', 'warning');
+                        e.target.value = currentDeviceId;
                         
-                        // Clear metrics
-                        updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
+                        // Reset network if it exists
+                        if (network) {
+                            addLog('🔄 Network reset due to device ID tampering attempt', 'warning');
+                            network = null;
+                            webrtcManager = null;
+                            setStatus('🔄 Network reset - create cluster again', 'loading');
+                            
+                            // Clear metrics
+                            updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
+                        }
+                    }
+                });
+                
+                // Also prevent paste events
+                deviceIdInput.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    addLog('⚠️ Device ID cannot be changed!', 'warning');
+                });
+                
+                // And keydown events
+                deviceIdInput.addEventListener('keydown', (e) => {
+                    // Allow only navigation keys, not editing
+                    const allowedKeys = ['Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+                    if (!allowedKeys.includes(e.key)) {
+                        e.preventDefault();
+                    }
+                });
+            }
+            
+            // Status management
+            function setStatus(message, type = 'loading') {
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = message;
+                statusEl.className = `status ${type}`;
+            }
+            
+            // Logging
+            function addLog(message, type = 'info') {
+                const logContainer = document.getElementById('logContainer');
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${type}`;
+                logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+                
+                // Keep only last 100 messages
+                while (logContainer.children.length > 100) {
+                    logContainer.removeChild(logContainer.firstChild);
+                }
+            }
+            
+            // Update metrics display
+            function updateMetrics(state) {
+                document.getElementById('nodeCountMetric').textContent = state.num_nodes;
+                document.getElementById('connectionCountMetric').textContent = state.num_connections;
+                document.getElementById('avgSpecializationMetric').textContent = state.avg_specialization.toFixed(3);
+                document.getElementById('totalActivationsMetric').textContent = state.total_activations;
+                
+                // Update blockchain metrics
+                if (network) {
+                    const balance = network.get_account_balance();
+                    document.getElementById('accountBalanceMetric').textContent = balance.toFixed(2);
+                    
+                    const blockchainStats = network.get_blockchain_stats();
+                    if (blockchainStats) {
+                        document.getElementById('totalBlocksMetric').textContent = blockchainStats.total_blocks;
+                        document.getElementById('memoryCapsulesMetric').textContent = blockchainStats.total_memory_capsules;
                     }
                 }
-            });
-            
-            // Also prevent paste events
-            deviceIdInput.addEventListener('paste', (e) => {
-                e.preventDefault();
-                addLog('⚠️ Device ID cannot be changed!', 'warning');
-            });
-            
-            // And keydown events
-            deviceIdInput.addEventListener('keydown', (e) => {
-                // Allow only navigation keys, not editing
-                const allowedKeys = ['Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-                if (!allowedKeys.includes(e.key)) {
-                    e.preventDefault();
-                }
-            });
-        }
-        
-        // Status management
-        function setStatus(message, type = 'loading') {
-            const statusEl = document.getElementById('status');
-            statusEl.textContent = message;
-            statusEl.className = `status ${type}`;
-        }
-        
-        // Logging
-        function addLog(message, type = 'info') {
-            const logContainer = document.getElementById('logContainer');
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry log-${type}`;
-            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-            
-            // Keep only last 100 messages
-            while (logContainer.children.length > 100) {
-                logContainer.removeChild(logContainer.firstChild);
             }
-        }
-        
-        // Update metrics display
-        function updateMetrics(state) {
-            document.getElementById('nodeCountMetric').textContent = state.num_nodes;
-            document.getElementById('connectionCountMetric').textContent = state.num_connections;
-            document.getElementById('avgSpecializationMetric').textContent = state.avg_specialization.toFixed(3);
-            document.getElementById('totalActivationsMetric').textContent = state.total_activations;
             
-            // Update blockchain metrics
-            if (network) {
-                const balance = network.get_account_balance();
-                document.getElementById('accountBalanceMetric').textContent = balance.toFixed(2);
+            // Visualization functions
+            function drawActivityChart() {
+                const canvas = document.getElementById('activityChart');
+                const ctx = canvas.getContext('2d');
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
                 
-                const blockchainStats = network.get_blockchain_stats();
-                if (blockchainStats) {
-                    document.getElementById('totalBlocksMetric').textContent = blockchainStats.total_blocks;
-                    document.getElementById('memoryCapsulesMetric').textContent = blockchainStats.total_memory_capsules;
-                }
-            }
-        }
-        
-        // Visualization functions
-        function drawActivityChart() {
-            const canvas = document.getElementById('activityChart');
-            const ctx = canvas.getContext('2d');
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (activityHistory.length < 2) return;
-            
-            ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            const maxVal = Math.max(...activityHistory);
-            const minVal = Math.min(...activityHistory);
-            const range = maxVal - minVal || 1;
-            
-            for (let i = 0; i < activityHistory.length; i++) {
-                const x = (i / (activityHistory.length - 1)) * canvas.width;
-                const y = canvas.height - ((activityHistory[i] - minVal) / range) * canvas.height;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            
-            ctx.stroke();
-            
-            // Draw error history
-            if (errorHistory.length > 1) {
-                ctx.strokeStyle = '#ff6b6b';
-                ctx.lineWidth = 1;
+                if (activityHistory.length < 2) return;
+                
+                ctx.strokeStyle = '#00ff88';
+                ctx.lineWidth = 2;
                 ctx.beginPath();
                 
-                const maxError = Math.max(...errorHistory);
-                const minError = Math.min(...errorHistory);
-                const errorRange = maxError - minError || 1;
+                const maxVal = Math.max(...activityHistory);
+                const minVal = Math.min(...activityHistory);
+                const range = maxVal - minVal || 1;
                 
-                for (let i = 0; i < errorHistory.length; i++) {
-                    const x = (i / (errorHistory.length - 1)) * canvas.width;
-                    const y = canvas.height - ((errorHistory[i] - minError) / errorRange) * canvas.height;
+                for (let i = 0; i < activityHistory.length; i++) {
+                    const x = (i / (activityHistory.length - 1)) * canvas.width;
+                    const y = canvas.height - ((activityHistory[i] - minVal) / range) * canvas.height;
                     
                     if (i === 0) {
                         ctx.moveTo(x, y);
@@ -637,918 +619,947 @@
                 }
                 
                 ctx.stroke();
-            }
-        }
-        
-        function drawTopologyChart(nodeCount, connectionCount) {
-            const canvas = document.getElementById('topologyChart');
-            const ctx = canvas.getContext('2d');
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (nodeCount === 0) return;
-            
-            // Draw nodes in a circle
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = Math.min(canvas.width, canvas.height) / 3;
-            
-            const nodes = [];
-            for (let i = 0; i < nodeCount; i++) {
-                const angle = (i / nodeCount) * 2 * Math.PI;
-                const x = centerX + Math.cos(angle) * radius;
-                const y = centerY + Math.sin(angle) * radius;
-                nodes.push({ x, y });
-            }
-            
-            // Draw connections (simplified)
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.lineWidth = 1;
-            const connectionsPerNode = Math.min(3, Math.floor(connectionCount / nodeCount));
-            
-            for (let i = 0; i < nodeCount; i++) {
-                for (let j = 1; j <= connectionsPerNode; j++) {
-                    const targetIndex = (i + j) % nodeCount;
+                
+                // Draw error history
+                if (errorHistory.length > 1) {
+                    ctx.strokeStyle = '#ff6b6b';
+                    ctx.lineWidth = 1;
                     ctx.beginPath();
-                    ctx.moveTo(nodes[i].x, nodes[i].y);
-                    ctx.lineTo(nodes[targetIndex].x, nodes[targetIndex].y);
+                    
+                    const maxError = Math.max(...errorHistory);
+                    const minError = Math.min(...errorHistory);
+                    const errorRange = maxError - minError || 1;
+                    
+                    for (let i = 0; i < errorHistory.length; i++) {
+                        const x = (i / (errorHistory.length - 1)) * canvas.width;
+                        const y = canvas.height - ((errorHistory[i] - minError) / errorRange) * canvas.height;
+                        
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    
                     ctx.stroke();
                 }
             }
             
-            // Draw nodes
-            ctx.fillStyle = '#FFD93D';
-            for (const node of nodes) {
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, 6, 0, 2 * Math.PI);
-                ctx.fill();
-            }
-        }
-
-        function drawBlockchainChart() {
-            const canvas = document.getElementById('blockchainChart');
-            const ctx = canvas.getContext('2d');
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (!network) return;
-            
-            const stats = network.get_blockchain_stats();
-            if (!stats) return;
-            
-            // Draw simple blockchain visualization
-            const blockWidth = 40;
-            const blockHeight = 30;
-            const blockSpacing = 10;
-            const startX = 20;
-            const startY = canvas.height / 2;
-            
-            ctx.fillStyle = '#FFD93D';
-            ctx.strokeStyle = '#FFF';
-            ctx.lineWidth = 2;
-            
-            for (let i = 0; i < Math.min(stats.total_blocks, 10); i++) {
-                const x = startX + i * (blockWidth + blockSpacing);
-                const y = startY - blockHeight / 2;
+            function drawTopologyChart(nodeCount, connectionCount) {
+                const canvas = document.getElementById('topologyChart');
+                const ctx = canvas.getContext('2d');
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
                 
-                // Draw block
-                ctx.fillRect(x, y, blockWidth, blockHeight);
-                ctx.strokeRect(x, y, blockWidth, blockHeight);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Draw block number
-                ctx.fillStyle = '#000';
-                ctx.font = '12px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(i.toString(), x + blockWidth/2, y + blockHeight/2 + 4);
+                if (nodeCount === 0) return;
+                
+                // Draw nodes in a circle
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const radius = Math.min(canvas.width, canvas.height) / 3;
+                
+                const nodes = [];
+                for (let i = 0; i < nodeCount; i++) {
+                    const angle = (i / nodeCount) * 2 * Math.PI;
+                    const x = centerX + Math.cos(angle) * radius;
+                    const y = centerY + Math.sin(angle) * radius;
+                    nodes.push({ x, y });
+                }
+                
+                // Draw connections (simplified)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 1;
+                const connectionsPerNode = Math.min(3, Math.floor(connectionCount / nodeCount));
+                
+                for (let i = 0; i < nodeCount; i++) {
+                    for (let j = 1; j <= connectionsPerNode; j++) {
+                        const targetIndex = (i + j) % nodeCount;
+                        ctx.beginPath();
+                        ctx.moveTo(nodes[i].x, nodes[i].y);
+                        ctx.lineTo(nodes[targetIndex].x, nodes[targetIndex].y);
+                        ctx.stroke();
+                    }
+                }
+                
+                // Draw nodes
                 ctx.fillStyle = '#FFD93D';
-                
-                // Draw connection to next block
-                if (i < Math.min(stats.total_blocks - 1, 9)) {
+                for (const node of nodes) {
                     ctx.beginPath();
-                    ctx.moveTo(x + blockWidth, y + blockHeight/2);
-                    ctx.lineTo(x + blockWidth + blockSpacing, y + blockHeight/2);
-                    ctx.stroke();
+                    ctx.arc(node.x, node.y, 6, 0, 2 * Math.PI);
+                    ctx.fill();
                 }
             }
-            
-            // Draw stats text
-            ctx.fillStyle = '#FFF';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(`Blocks: ${stats.total_blocks}`, 20, 30);
-            ctx.fillText(`Transactions: ${stats.total_transactions}`, 20, 50);
-            ctx.fillText(`Memory Capsules: ${stats.total_memory_capsules}`, 20, 70);
-            ctx.fillText(`Accounts: ${stats.total_accounts}`, 20, 90);
-        }
-        
-        function drawP2PStatsChart(stats) {
-            const canvas = document.getElementById('p2pStatsChart');
-            const ctx = canvas.getContext('2d');
-            
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Background
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Network health visualization
-            const healthPercent = (stats.network_health || 0) * 100;
-            const healthColor = healthPercent > 70 ? '#4CAF50' : healthPercent > 40 ? '#FF9800' : '#F44336';
-            
-            // Health bar
-            ctx.fillStyle = healthColor;
-            ctx.fillRect(20, 20, (canvas.width - 40) * (healthPercent / 100), 30);
-            
-            // Health border
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(20, 20, canvas.width - 40, 30);
-            
-            // Health label
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(`Network Health: ${Math.round(healthPercent)}%`, canvas.width / 2, 40);
-            
-            // Connection stats
-            const connectedPeers = stats.connected_peers || 0;
-            const knownPeers = stats.known_peers || 0;
-            
-            // Peer connection visualization
-            ctx.fillStyle = '#00BCD4';
-            ctx.fillRect(20, 70, Math.min(connectedPeers * 30, canvas.width - 40), 20);
-            
-            ctx.fillStyle = 'rgba(156, 39, 176, 0.5)';
-            ctx.fillRect(20, 100, Math.min(knownPeers * 20, canvas.width - 40), 20);
-            
-            // Labels
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(`Connected: ${connectedPeers}`, 25, 85);
-            ctx.fillText(`Known: ${knownPeers}`, 25, 115);
-            
-            // Latency indicator
-            const avgLatency = stats.average_latency || 0;
-            const latencyColor = avgLatency < 100 ? '#4CAF50' : avgLatency < 300 ? '#FF9800' : '#F44336';
-            
-            ctx.fillStyle = latencyColor;
-            ctx.fillRect(20, 140, Math.min(avgLatency / 2, canvas.width - 40), 15);
-            
-            ctx.fillStyle = '#fff';
-            ctx.fillText(`Avg Latency: ${Math.round(avgLatency)}ms`, 25, 152);
-        }
-        
-        // Event handlers
-        document.getElementById('createCluster').addEventListener('click', () => {
-            const deviceId = currentDeviceId; // Use the persistent device ID
-            const clusterId = document.getElementById('clusterId').value;
-            const nodeCount = parseInt(document.getElementById('nodeCount').value);
-            
-            if (!deviceId) {
-                addLog('❌ Device ID not initialized!', 'error');
-                return;
-            }
-            
-            if (!network) {
-                network = new DistributedNeuralNetwork(deviceId);
-                webrtcManager = new WebRTCManager(deviceId);
-                addLog(`Created network for device: ${deviceId}`, 'blockchain');
-                addLog(`Initialized WebRTC manager for device: ${deviceId}`, 'p2p');
-            }
-            
-            const success = network.create_cluster(clusterId, nodeCount);
-            if (success) {
-                addLog(`Created cluster '${clusterId}' with ${nodeCount} nodes`);
-                setStatus('🟢 Network ready', 'ready');
+
+            function drawBlockchainChart() {
+                const canvas = document.getElementById('blockchainChart');
+                const ctx = canvas.getContext('2d');
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
                 
-                // Update visualization
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (!network) return;
+                
+                const stats = network.get_blockchain_stats();
+                if (!stats) return;
+                
+                // Draw simple blockchain visualization
+                const blockWidth = 40;
+                const blockHeight = 30;
+                const blockSpacing = 10;
+                const startX = 20;
+                const startY = canvas.height / 2;
+                
+                ctx.fillStyle = '#FFD93D';
+                ctx.strokeStyle = '#FFF';
+                ctx.lineWidth = 2;
+                
+                for (let i = 0; i < Math.min(stats.total_blocks, 10); i++) {
+                    const x = startX + i * (blockWidth + blockSpacing);
+                    const y = startY - blockHeight / 2;
+                    
+                    // Draw block
+                    ctx.fillRect(x, y, blockWidth, blockHeight);
+                    ctx.strokeRect(x, y, blockWidth, blockHeight);
+                    
+                    // Draw block number
+                    ctx.fillStyle = '#000';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(i.toString(), x + blockWidth/2, y + blockHeight/2 + 4);
+                    ctx.fillStyle = '#FFD93D';
+                    
+                    // Draw connection to next block
+                    if (i < Math.min(stats.total_blocks - 1, 9)) {
+                        ctx.beginPath();
+                        ctx.moveTo(x + blockWidth, y + blockHeight/2);
+                        ctx.lineTo(x + blockWidth + blockSpacing, y + blockHeight/2);
+                        ctx.stroke();
+                    }
+                }
+                
+                // Draw stats text
+                ctx.fillStyle = '#FFF';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Blocks: ${stats.total_blocks}`, 20, 30);
+                ctx.fillText(`Transactions: ${stats.total_transactions}`, 20, 50);
+                ctx.fillText(`Memory Capsules: ${stats.total_memory_capsules}`, 20, 70);
+                ctx.fillText(`Accounts: ${stats.total_accounts}`, 20, 90);
+            }
+            
+            function drawP2PStatsChart(stats) {
+                const canvas = document.getElementById('p2pStatsChart');
+                const ctx = canvas.getContext('2d');
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Background
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Network health visualization
+                const healthPercent = (stats.network_health || 0) * 100;
+                const healthColor = healthPercent > 70 ? '#4CAF50' : healthPercent > 40 ? '#FF9800' : '#F44336';
+                
+                // Health bar
+                ctx.fillStyle = healthColor;
+                ctx.fillRect(20, 20, (canvas.width - 40) * (healthPercent / 100), 30);
+                
+                // Health border
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(20, 20, canvas.width - 40, 30);
+                
+                // Health label
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Network Health: ${Math.round(healthPercent)}%`, canvas.width / 2, 40);
+                
+                // Connection stats
+                const connectedPeers = stats.connected_peers || 0;
+                const knownPeers = stats.known_peers || 0;
+                
+                // Peer connection visualization
+                ctx.fillStyle = '#00BCD4';
+                ctx.fillRect(20, 70, Math.min(connectedPeers * 30, canvas.width - 40), 20);
+                
+                ctx.fillStyle = 'rgba(156, 39, 176, 0.5)';
+                ctx.fillRect(20, 100, Math.min(knownPeers * 20, canvas.width - 40), 20);
+                
+                // Labels
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Connected: ${connectedPeers}`, 25, 85);
+                ctx.fillText(`Known: ${knownPeers}`, 25, 115);
+                
+                // Latency indicator
+                const avgLatency = stats.average_latency || 0;
+                const latencyColor = avgLatency < 100 ? '#4CAF50' : avgLatency < 300 ? '#FF9800' : '#F44336';
+                
+                ctx.fillStyle = latencyColor;
+                ctx.fillRect(20, 140, Math.min(avgLatency / 2, canvas.width - 40), 15);
+                
+                ctx.fillStyle = '#fff';
+                ctx.fillText(`Avg Latency: ${Math.round(avgLatency)}ms`, 25, 152);
+            }
+            
+            // Event handlers
+            document.getElementById('createCluster').addEventListener('click', () => {
+                const deviceId = currentDeviceId; // Use the persistent device ID
+                const clusterId = document.getElementById('clusterId').value;
+                const nodeCount = parseInt(document.getElementById('nodeCount').value);
+                
+                if (!deviceId) {
+                    addLog('❌ Device ID not initialized!', 'error');
+                    return;
+                }
+                
+                if (!network) {
+                    network = new DistributedNeuralNetwork(deviceId);
+                    webrtcManager = new WebRTCManager(deviceId);
+                    addLog(`Created network for device: ${deviceId}`, 'blockchain');
+                    addLog(`Initialized WebRTC manager for device: ${deviceId}`, 'p2p');
+                }
+                
+                const success = network.create_cluster(clusterId, nodeCount);
+                if (success) {
+                    addLog(`Created cluster '${clusterId}' with ${nodeCount} nodes`);
+                    setStatus('🟢 Network ready', 'ready');
+                    
+                    // Update visualization
+                    const state = network.get_cluster_state(clusterId);
+                    if (state) {
+                        updateMetrics(state);
+                        drawTopologyChart(nodeCount, state.num_connections);
+                        drawBlockchainChart();
+                    }
+                } else {
+                    addLog('Failed to create cluster', 'error');
+                }
+            });
+            
+            document.getElementById('processInput').addEventListener('click', () => {
+                if (!network) {
+                    addLog('Create a network first!', 'error');
+                    return;
+                }
+                
+                const clusterId = document.getElementById('clusterId').value;
+                const inputStr = document.getElementById('inputData').value;
+                const inputData = inputStr.split(',').map(x => parseFloat(x.trim()));
+                
+                const outputs = network.process_input(clusterId, inputData);
+                const avgOutput = outputs.reduce((sum, val) => sum + val, 0) / outputs.length;
+                
+                activityHistory.push(avgOutput);
+                if (activityHistory.length > 100) {
+                    activityHistory.shift();
+                }
+                
+                addLog(`Processed input: [${inputData.join(', ')}] → avg output: ${avgOutput.toFixed(4)}`);
+                
+                // Update metrics
                 const state = network.get_cluster_state(clusterId);
                 if (state) {
                     updateMetrics(state);
-                    drawTopologyChart(nodeCount, state.num_connections);
-                    drawBlockchainChart();
+                    drawTopologyChart(state.num_nodes, state.num_connections);
                 }
-            } else {
-                addLog('Failed to create cluster', 'error');
-            }
-        });
-        
-        document.getElementById('processInput').addEventListener('click', () => {
-            if (!network) {
-                addLog('Create a network first!', 'error');
-                return;
-            }
-            
-            const clusterId = document.getElementById('clusterId').value;
-            const inputStr = document.getElementById('inputData').value;
-            const inputData = inputStr.split(',').map(x => parseFloat(x.trim()));
-            
-            const outputs = network.process_input(clusterId, inputData);
-            const avgOutput = outputs.reduce((sum, val) => sum + val, 0) / outputs.length;
-            
-            activityHistory.push(avgOutput);
-            if (activityHistory.length > 100) {
-                activityHistory.shift();
-            }
-            
-            addLog(`Processed input: [${inputData.join(', ')}] → avg output: ${avgOutput.toFixed(4)}`);
-            
-            // Update metrics
-            const state = network.get_cluster_state(clusterId);
-            if (state) {
-                updateMetrics(state);
-                drawTopologyChart(state.num_nodes, state.num_connections);
-            }
-            
-            drawActivityChart();
-            drawBlockchainChart();
-        });
-        
-        document.getElementById('updateError').addEventListener('click', () => {
-            if (!network) {
-                addLog('Create a network first!', 'error');
-                return;
-            }
-            
-            const clusterId = document.getElementById('clusterId').value;
-            const error = parseFloat(document.getElementById('errorSignal').value);
-            
-            network.update_error_signal(clusterId, error);
-            
-            errorHistory.push(Math.abs(error));
-            if (errorHistory.length > 100) {
-                errorHistory.shift();
-            }
-            
-            addLog(`Updated error signal: ${error}`);
-            drawActivityChart();
-        });
-        
-        document.getElementById('stepSimulation').addEventListener('click', () => {
-            if (!network) {
-                addLog('Create a network first!', 'error');
-                return;
-            }
-            
-            network.step_simulation(1.0);
-            addLog('Stepped simulation forward');
-            
-            // Update metrics
-            const clusterId = document.getElementById('clusterId').value;
-            const state = network.get_cluster_state(clusterId);
-            if (state) {
-                updateMetrics(state);
-            }
-        });
-
-        document.getElementById('borrowNode').addEventListener('click', () => {
-            if (!network) {
-                addLog('Create a network first!', 'error');
-                return;
-            }
-            
-            const nodeOwner = document.getElementById('nodeOwner').value;
-            const duration = parseFloat(document.getElementById('borrowDuration').value);
-            const nodeId = 'remote_node_001';
-            
-            const borrowingId = network.request_node_borrowing(nodeOwner, nodeId, duration);
-            if (borrowingId) {
-                addLog(`✅ Node borrowing approved: ${borrowingId}`, 'blockchain');
-                updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
-            } else {
-                addLog('❌ Node borrowing request denied', 'error');
-            }
-        });
-
-        document.getElementById('mineBlock').addEventListener('click', () => {
-            if (!network) {
-                addLog('Create a network first!', 'error');
-                return;
-            }
-            
-            const blockHash = network.mine_block();
-            if (blockHash) {
-                addLog(`⛏️ Mined new block: ${blockHash}`, 'blockchain');
+                
+                drawActivityChart();
                 drawBlockchainChart();
-                updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
-            } else {
-                addLog('No pending transactions to mine', 'warning');
-            }
-        });
-
-        document.getElementById('validateChain').addEventListener('click', () => {
-            if (!network) {
-                addLog('Create a network first!', 'error');
-                return;
-            }
+            });
             
-            const isValid = network.validate_blockchain();
-            if (isValid) {
-                addLog('✅ Blockchain validation passed', 'blockchain');
-            } else {
-                addLog('❌ Blockchain validation failed!', 'error');
-            }
-        });
-        
-        // P2P Networking event handlers
-        document.getElementById('configureSignaling').addEventListener('click', () => {
-            const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
-            if (network && signalingUrl) {
-                try {
-                    const success = network.configure_signaling_server(signalingUrl);
-                    if (success) {
-                        addLog(`🌐 Configured signaling server: ${signalingUrl}`, 'p2p');
-                        setStatus('🟢 Signaling server configured', 'ready');
-                        
-                        // Save the URL if it's different
-                        if (signalingUrl !== currentSignalingServer) {
-                            currentSignalingServer = signalingUrl;
-                            localStorage.setItem('dnn_signaling_server', signalingUrl);
-                            addLog(`💾 Signaling server URL saved: ${signalingUrl}`, 'info');
-                        }
-                    } else {
-                        addLog('❌ Failed to configure signaling server', 'error');
-                    }
-                } catch (e) {
-                    addLog(`❌ Error configuring signaling server: ${e.message}`, 'error');
-                }
-            } else if (!signalingUrl) {
-                addLog('❌ Please enter a signaling server URL', 'error');
-            } else {
-                addLog('❌ Create a network first!', 'error');
-            }
-        });
-
-        document.getElementById('startDiscovery').addEventListener('click', () => {
-            if (network) {
-                // Configure signaling server before starting discovery if not already configured
-                const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
-                if (signalingUrl) {
-                    const configSuccess = network.configure_signaling_server(signalingUrl);
-                    if (configSuccess) {
-                        addLog(`🌐 Connected to signaling server: ${signalingUrl}`, 'p2p');
-                        
-                        // Wait for connection to establish, then start discovery
-                        setTimeout(() => {
-                            if (network.is_connected_to_signaling_server()) {
-                                const success = network.start_peer_discovery();
-                                if (success) {
-                                    addLog('🔍 Started real peer discovery protocol', 'p2p');
-                                    setStatus('🌐 Discovering real peers', 'connecting');
-                                    
-                                    // Set up discovery result polling
-                                    setupDiscoveryPolling();
-                                } else {
-                                    addLog('❌ Failed to start peer discovery', 'error');
-                                }
-                            } else {
-                                addLog('❌ Not connected to signaling server', 'error');
-                            }
-                        }, 1000); // Wait 1 second for WebSocket connection
-                    } else {
-                        addLog('❌ Failed to connect to signaling server', 'error');
-                    }
-                } else {
-                    addLog('❌ No signaling server configured', 'error');
-                    return;
-                }
-            } else {
-                addLog('❌ Create a network first!', 'error');
-            }
-        });
-
-        // Set up polling for discovery results
-        function setupDiscoveryPolling() {
-            let pollCount = 0;
-            const maxPolls = 10; // Poll for 5 seconds
-            
-            const pollInterval = setInterval(() => {
-                pollCount++;
-                
+            document.getElementById('updateError').addEventListener('click', () => {
                 if (!network) {
-                    clearInterval(pollInterval);
+                    addLog('Create a network first!', 'error');
                     return;
                 }
                 
-                const peersJson = network.get_discovered_peers();
-                let peers = [];
+                const clusterId = document.getElementById('clusterId').value;
+                const error = parseFloat(document.getElementById('errorSignal').value);
                 
-                try {
-                    peers = JSON.parse(peersJson);
-                } catch (e) {
-                    console.warn('Failed to parse peers JSON:', e);
+                network.update_error_signal(clusterId, error);
+                
+                errorHistory.push(Math.abs(error));
+                if (errorHistory.length > 100) {
+                    errorHistory.shift();
                 }
                 
-                if (peers.length > 0) {
-                    clearInterval(pollInterval);
-                    addLog(`🔍 Found ${peers.length} real peers from signaling server!`, 'p2p');
-                    
-                    // Process the discovered peers to update node registry
-                    network.handle_discovery_results(JSON.stringify(peers));
-                    
-                    // Update the peer display
-                    updateDiscoveredPeers(peers);
-                    
-                    // Now find free nodes among discovered peers
-                    addLog('🔍 Checking which discovered peers are free...', 'p2p');
-                    
-                    setTimeout(async () => {
-                        try {
-                            if (typeof network.auto_connect_to_free_node === 'function') {
-                                const connectedPeerId = await network.auto_connect_to_free_node();
-                                if (connectedPeerId) {
-                                    addLog(`✅ Auto-connected to free peer: ${connectedPeerId}`, 'p2p');
-                                    setStatus('🟢 Connected to free peer', 'ready');
-                                    document.getElementById('connectedPeer').textContent = connectedPeerId;
-                                    updateNodeAvailabilityStats();
-                                } else {
-                                    addLog('⚠️ No free nodes among discovered peers', 'warning');
-                                    addLog('💡 All discovered peers are currently busy processing', 'info');
-                                }
-                            } else {
-                                // Fallback: auto-connect to random peer (old behavior)
-                                addLog('⚠️ Free node detection not available, using random selection', 'warning');
-                                const randomIndex = Math.floor(Math.random() * peers.length);
-                                const selectedPeer = peers[randomIndex];
-                                
-                                addLog(`🎯 Auto-selected peer: ${selectedPeer.device_id}`, 'p2p');
-                                const connectionSuccess = await network.initiate_webrtc_connection(selectedPeer.device_id);
-                                if (connectionSuccess) {
-                                    addLog(`✅ WebRTC connection initiated to peer: ${selectedPeer.device_id}`, 'p2p');
-                                    setStatus('🌐 WebRTC connecting to peer', 'connecting');
-                                    document.getElementById('connectedPeer').textContent = selectedPeer.device_id;
-                                } else {
-                                    addLog(`❌ Failed to initiate WebRTC connection to peer: ${selectedPeer.device_id}`, 'error');
-                                }
+                addLog(`Updated error signal: ${error}`);
+                drawActivityChart();
+            });
+            
+            document.getElementById('stepSimulation').addEventListener('click', () => {
+                if (!network) {
+                    addLog('Create a network first!', 'error');
+                    return;
+                }
+                
+                network.step_simulation(1.0);
+                addLog('Stepped simulation forward');
+                
+                // Update metrics
+                const clusterId = document.getElementById('clusterId').value;
+                const state = network.get_cluster_state(clusterId);
+                if (state) {
+                    updateMetrics(state);
+                }
+            });
+
+            document.getElementById('borrowNode').addEventListener('click', () => {
+                if (!network) {
+                    addLog('Create a network first!', 'error');
+                    return;
+                }
+                
+                const nodeOwner = document.getElementById('nodeOwner').value;
+                const duration = parseFloat(document.getElementById('borrowDuration').value);
+                const nodeId = 'remote_node_001';
+                
+                const borrowingId = network.request_node_borrowing(nodeOwner, nodeId, duration);
+                if (borrowingId) {
+                    addLog(`✅ Node borrowing approved: ${borrowingId}`, 'blockchain');
+                    updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
+                } else {
+                    addLog('❌ Node borrowing request denied', 'error');
+                }
+            });
+
+            document.getElementById('mineBlock').addEventListener('click', () => {
+                if (!network) {
+                    addLog('Create a network first!', 'error');
+                    return;
+                }
+                
+                const blockHash = network.mine_block();
+                if (blockHash) {
+                    addLog(`⛏️ Mined new block: ${blockHash}`, 'blockchain');
+                    drawBlockchainChart();
+                    updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
+                } else {
+                    addLog('No pending transactions to mine', 'warning');
+                }
+            });
+
+            document.getElementById('validateChain').addEventListener('click', () => {
+                if (!network) {
+                    addLog('Create a network first!', 'error');
+                    return;
+                }
+                
+                const isValid = network.validate_blockchain();
+                if (isValid) {
+                    addLog('✅ Blockchain validation passed', 'blockchain');
+                } else {
+                    addLog('❌ Blockchain validation failed!', 'error');
+                }
+            });
+            
+            // P2P Networking event handlers
+            document.getElementById('configureSignaling').addEventListener('click', () => {
+                const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
+                if (network && signalingUrl) {
+                    try {
+                        const success = network.configure_signaling_server(signalingUrl);
+                        if (success) {
+                            addLog(`🌐 Configured signaling server: ${signalingUrl}`, 'p2p');
+                            setStatus('🟢 Signaling server configured', 'ready');
+                            
+                            // Save the URL if it's different
+                            if (signalingUrl !== currentSignalingServer) {
+                                currentSignalingServer = signalingUrl;
+                                localStorage.setItem('dnn_signaling_server', signalingUrl);
+                                addLog(`💾 Signaling server URL saved: ${signalingUrl}`, 'info');
                             }
-                        } catch (error) {
-                            addLog(`❌ Auto-connection failed: ${error.message}`, 'error');
-                            addLog('💡 Try rebuilding WASM module with "./build.sh"', 'info');
+                        } else {
+                            addLog('❌ Failed to configure signaling server', 'error');
                         }
-                    }, 500); // Brief delay to allow node status processing
-                } else if (pollCount >= maxPolls) {
-                    clearInterval(pollInterval);
-                    addLog('🔍 No real peers found after 5 seconds. Try opening another browser tab/window.', 'warning');
-                    addLog('💡 Multiple devices or browser instances needed for real peer discovery.', 'info');
-                    setStatus('🟡 No peers found', 'ready');
+                    } catch (e) {
+                        addLog(`❌ Error configuring signaling server: ${e.message}`, 'error');
+                    }
+                } else if (!signalingUrl) {
+                    addLog('❌ Please enter a signaling server URL', 'error');
+                } else {
+                    addLog('❌ Create a network first!', 'error');
                 }
-            }, 500); // Poll every 500ms
-        }
+            });
 
-        function updateDiscoveredPeers(peers) {
-            const peerContainer = document.getElementById('discoveredPeers');
-            if (peers.length === 0) {
-                peerContainer.innerHTML = 'No peers discovered yet';
-                return;
-            }
-            
-            peerContainer.innerHTML = peers.map(peer => {
-                const bgColor = 'rgba(255, 255, 255, 0.1)';
-                const borderColor = 'transparent';
-                const selectedLabel = '';
-                
-                return `
-                    <div style="background: ${bgColor}; border: 2px solid ${borderColor}; padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
-                        <span><strong>${peer.device_id}</strong>${selectedLabel}<br>
-                              <small style="color: rgba(255,255,255,0.7);">Capabilities: ${peer.capabilities.join(', ')}</small><br>
-                              <small style="color: rgba(255,255,255,0.6);">Specializations: ${peer.cluster_specializations ? peer.cluster_specializations.join(', ') : 'None'}</small>
-                        </span>
-                        <button onclick="connectToPeer('${peer.device_id}')" style="padding: 5px 10px; background: #9C27B0; color: white; border: none; border-radius: 3px; cursor: pointer;">
-                            Connect
-                        </button>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        window.connectToPeer = function(peerId) {
-            if (webrtcManager) {
-                addLog(`🔗 Initiating WebRTC connection to: ${peerId}`, 'p2p');
-                // This would trigger the WebRTC connection process
-                document.getElementById('autoConnectFreeNode').click();
-            }
-        };
-
-        document.getElementById('autoConnectFreeNode').addEventListener('click', async () => {
-            if (!network) {
-                addLog('❌ Create a network first!', 'error');
-                return;
-            }
-            
-            addLog('🎯 Searching for free nodes...', 'p2p');
-            setStatus('🔍 Finding free nodes', 'connecting');
-            
-            try {
-                if (typeof network.auto_connect_to_free_node === 'function') {
-                    const connectedPeerId = await network.auto_connect_to_free_node();
-                    if (connectedPeerId) {
-                        addLog(`✅ Auto-connected to free node: ${connectedPeerId}`, 'p2p');
-                        setStatus('🟢 Connected to free node', 'ready');
-                        document.getElementById('connectedPeer').textContent = connectedPeerId;
-                        
-                        // Update node availability stats
-                        updateNodeAvailabilityStats();
+            document.getElementById('startDiscovery').addEventListener('click', () => {
+                if (network) {
+                    // Configure signaling server before starting discovery if not already configured
+                    const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
+                    if (signalingUrl) {
+                        const configSuccess = network.configure_signaling_server(signalingUrl);
+                        if (configSuccess) {
+                            addLog(`🌐 Connected to signaling server: ${signalingUrl}`, 'p2p');
+                            
+                            // Wait for connection to establish, then start discovery
+                            setTimeout(() => {
+                                if (network.is_connected_to_signaling_server()) {
+                                    const success = network.start_peer_discovery();
+                                    if (success) {
+                                        addLog('🔍 Started real peer discovery protocol', 'p2p');
+                                        setStatus('🌐 Discovering real peers', 'connecting');
+                                        
+                                        // Set up discovery result polling
+                                        setupDiscoveryPolling();
+                                    } else {
+                                        addLog('❌ Failed to start peer discovery', 'error');
+                                    }
+                                } else {
+                                    addLog('❌ Not connected to signaling server', 'error');
+                                }
+                            }, 1000); // Wait 1 second for WebSocket connection
+                        } else {
+                            addLog('❌ Failed to connect to signaling server', 'error');
+                        }
                     } else {
-                        addLog('❌ No free nodes available for connection', 'warning');
-                        setStatus('🟡 No free nodes found', 'ready');
+                        addLog('❌ No signaling server configured', 'error');
+                        return;
                     }
                 } else {
-                    // Fallback: connect to any discovered peer
-                    addLog('⚠️ Free node detection not available, using fallback connection', 'warning');
+                    addLog('❌ Create a network first!', 'error');
+                }
+            });
+
+            // Set up polling for discovery results
+            function setupDiscoveryPolling() {
+                let pollCount = 0;
+                const maxPolls = 10; // Poll for 5 seconds
+                
+                const pollInterval = setInterval(() => {
+                    pollCount++;
+                    
+                    if (!network) {
+                        clearInterval(pollInterval);
+                        return;
+                    }
+                    
                     const peersJson = network.get_discovered_peers();
-                    const peers = JSON.parse(peersJson);
+                    let peers = [];
+                    
+                    try {
+                        peers = JSON.parse(peersJson);
+                    } catch (e) {
+                        console.warn('Failed to parse peers JSON:', e);
+                    }
                     
                     if (peers.length > 0) {
-                        const randomIndex = Math.floor(Math.random() * peers.length);
-                        const selectedPeer = peers[randomIndex];
+                        clearInterval(pollInterval);
+                        addLog(`🔍 Found ${peers.length} real peers from signaling server!`, 'p2p');
                         
-                        addLog(`🎯 Fallback: connecting to random peer: ${selectedPeer.device_id}`, 'p2p');
-                        const success = await network.initiate_webrtc_connection(selectedPeer.device_id);
-                        if (success) {
-                            addLog(`✅ Connected to peer: ${selectedPeer.device_id}`, 'p2p');
-                            setStatus('🟢 Connected to peer', 'ready');
-                            document.getElementById('connectedPeer').textContent = selectedPeer.device_id;
-                        } else {
-                            addLog(`❌ Failed to connect to peer: ${selectedPeer.device_id}`, 'error');
-                            setStatus('❌ Connection failed', 'error');
-                        }
-                    } else {
-                        addLog('❌ No peers available for connection', 'warning');
+                        // Process the discovered peers to update node registry
+                        network.handle_discovery_results(JSON.stringify(peers));
+                        
+                        // Update the peer display
+                        updateDiscoveredPeers(peers);
+                        
+                        // Now find free nodes among discovered peers
+                        addLog('🔍 Checking which discovered peers are free...', 'p2p');
+                        
+                        setTimeout(async () => {
+                            try {
+                                if (typeof network.auto_connect_to_free_node === 'function') {
+                                    const connectedPeerId = await network.auto_connect_to_free_node();
+                                    if (connectedPeerId) {
+                                        addLog(`✅ Auto-connected to free peer: ${connectedPeerId}`, 'p2p');
+                                        setStatus('🟢 Connected to free peer', 'ready');
+                                        document.getElementById('connectedPeer').textContent = connectedPeerId;
+                                        updateNodeAvailabilityStats();
+                                    } else {
+                                        addLog('⚠️ No free nodes among discovered peers', 'warning');
+                                        addLog('💡 All discovered peers are currently busy processing', 'info');
+                                    }
+                                } else {
+                                    // Fallback: auto-connect to random peer (old behavior)
+                                    addLog('⚠️ Free node detection not available, using random selection', 'warning');
+                                    const randomIndex = Math.floor(Math.random() * peers.length);
+                                    const selectedPeer = peers[randomIndex];
+                                    
+                                    addLog(`🎯 Auto-selected peer: ${selectedPeer.device_id}`, 'p2p');
+                                    const connectionSuccess = await network.initiate_webrtc_connection(selectedPeer.device_id);
+                                    if (connectionSuccess) {
+                                        addLog(`✅ WebRTC connection initiated to peer: ${selectedPeer.device_id}`, 'p2p');
+                                        setStatus('🌐 WebRTC connecting to peer', 'connecting');
+                                        document.getElementById('connectedPeer').textContent = selectedPeer.device_id;
+                                    } else {
+                                        addLog(`❌ Failed to initiate WebRTC connection to peer: ${selectedPeer.device_id}`, 'error');
+                                    }
+                                }
+                            } catch (error) {
+                                addLog(`❌ Auto-connection failed: ${error.message}`, 'error');
+                                addLog('💡 Try rebuilding WASM module with "./build.sh"', 'info');
+                            }
+                        }, 500); // Brief delay to allow node status processing
+                    } else if (pollCount >= maxPolls) {
+                        clearInterval(pollInterval);
+                        addLog('🔍 No real peers found after 5 seconds. Try opening another browser tab/window.', 'warning');
+                        addLog('💡 Multiple devices or browser instances needed for real peer discovery.', 'info');
                         setStatus('🟡 No peers found', 'ready');
                     }
-                }
-            } catch (error) {
-                addLog(`❌ Failed to auto-connect: ${error.message}`, 'error');
-                addLog('💡 Try rebuilding WASM module with "./build.sh"', 'info');
-                setStatus('❌ Auto-connection failed', 'error');
+                }, 500); // Poll every 500ms
             }
-        });
 
-        document.getElementById('checkNodeAvailability').addEventListener('click', () => {
-            if (!network) {
-                addLog('❌ Create a network first!', 'error');
-                return;
-            }
-            
-            addLog('📊 Checking node availability...', 'info');
-            updateNodeAvailabilityStats();
-            
-            try {
-                const freeNodesJson = network.find_free_nodes();
-                const freeNodes = JSON.parse(freeNodesJson);
-                addLog(`🔍 Found ${freeNodes.length} free nodes available for processing`, 'p2p');
-                
-                freeNodes.forEach(node => {
-                    addLog(`🟢 Free node: ${node.device_id} - Load: ${(node.node_status.processing_load * 100).toFixed(1)}%, Available nodes: ${node.available_nodes}`, 'info');
-                });
-                
-                if (freeNodes.length === 0) {
-                    addLog('⚠️ No free nodes currently available. All peers are busy.', 'warning');
+            function updateDiscoveredPeers(peers) {
+                const peerContainer = document.getElementById('discoveredPeers');
+                if (peers.length === 0) {
+                    peerContainer.innerHTML = 'No peers discovered yet';
+                    return;
                 }
-            } catch (e) {
-                addLog('❌ Free node detection not available yet. Please rebuild WASM module.', 'error');
-                addLog('💡 Run "./build.sh" to rebuild with latest features.', 'info');
+                
+                peerContainer.innerHTML = peers.map(peer => {
+                    const bgColor = 'rgba(255, 255, 255, 0.1)';
+                    const borderColor = 'transparent';
+                    const selectedLabel = '';
+                    
+                    return `
+                        <div style="background: ${bgColor}; border: 2px solid ${borderColor}; padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                            <span><strong>${peer.device_id}</strong>${selectedLabel}<br>
+                                  <small style="color: rgba(255,255,255,0.7);">Capabilities: ${peer.capabilities.join(', ')}</small><br>
+                                  <small style="color: rgba(255,255,255,0.6);">Specializations: ${peer.cluster_specializations ? peer.cluster_specializations.join(', ') : 'None'}</small>
+                            </span>
+                            <button onclick="connectToPeer('${peer.device_id}')" style="padding: 5px 10px; background: #9C27B0; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                                Connect
+                            </button>
+                        </div>
+                    `;
+                }).join('');
             }
-        });
 
-        function updateNodeAvailabilityStats() {
-            if (!network) return;
-            
-            try {
-                if (typeof network.get_node_availability_stats === 'function') {
-                    const statsJson = network.get_node_availability_stats();
-                    const stats = JSON.parse(statsJson);
-                    
-                    document.getElementById('totalPeers').textContent = stats.total_peers || 0;
-                    document.getElementById('freeNodes').textContent = stats.free_nodes || 0;
-                    document.getElementById('busyNodes').textContent = stats.busy_nodes || 0;
-                    document.getElementById('availabilityRatio').textContent = 
-                        `${Math.round((stats.availability_ratio || 0) * 100)}%`;
-                    
-                    // Update color based on availability
-                    const availabilityElement = document.getElementById('availabilityRatio');
-                    const ratio = stats.availability_ratio || 0;
-                    if (ratio > 0.7) {
-                        availabilityElement.style.color = '#4CAF50'; // Green
-                    } else if (ratio > 0.3) {
-                        availabilityElement.style.color = '#FF9800'; // Orange
+            window.connectToPeer = function(peerId) {
+                if (webrtcManager) {
+                    addLog(`🔗 Initiating WebRTC connection to: ${peerId}`, 'p2p');
+                    // This would trigger the WebRTC connection process
+                    document.getElementById('autoConnectFreeNode').click();
+                }
+            };
+
+            document.getElementById('autoConnectFreeNode').addEventListener('click', async () => {
+                if (!network) {
+                    addLog('❌ Create a network first!', 'error');
+                    return;
+                }
+                
+                addLog('🎯 Searching for free nodes...', 'p2p');
+                setStatus('🔍 Finding free nodes', 'connecting');
+                
+                try {
+                    if (typeof network.auto_connect_to_free_node === 'function') {
+                        const connectedPeerId = await network.auto_connect_to_free_node();
+                        if (connectedPeerId) {
+                            addLog(`✅ Auto-connected to free node: ${connectedPeerId}`, 'p2p');
+                            setStatus('🟢 Connected to free node', 'ready');
+                            document.getElementById('connectedPeer').textContent = connectedPeerId;
+                            
+                            // Update node availability stats
+                            updateNodeAvailabilityStats();
+                        } else {
+                            addLog('❌ No free nodes available for connection', 'warning');
+                            setStatus('🟡 No free nodes found', 'ready');
+                        }
                     } else {
-                        availabilityElement.style.color = '#F44336'; // Red
+                        // Fallback: connect to any discovered peer
+                        addLog('⚠️ Free node detection not available, using fallback connection', 'warning');
+                        const peersJson = network.get_discovered_peers();
+                        const peers = JSON.parse(peersJson);
+                        
+                        if (peers.length > 0) {
+                            const randomIndex = Math.floor(Math.random() * peers.length);
+                            const selectedPeer = peers[randomIndex];
+                            
+                            addLog(`🎯 Fallback: connecting to random peer: ${selectedPeer.device_id}`, 'p2p');
+                            const success = await network.initiate_webrtc_connection(selectedPeer.device_id);
+                            if (success) {
+                                addLog(`✅ Connected to peer: ${selectedPeer.device_id}`, 'p2p');
+                                setStatus('🟢 Connected to peer', 'ready');
+                                document.getElementById('connectedPeer').textContent = selectedPeer.device_id;
+                            } else {
+                                addLog(`❌ Failed to connect to peer: ${selectedPeer.device_id}`, 'error');
+                                setStatus('❌ Connection failed', 'error');
+                            }
+                        } else {
+                            addLog('❌ No peers available for connection', 'warning');
+                            setStatus('🟡 No peers found', 'ready');
+                        }
                     }
-                } else {
-                    // Fallback: use basic peer count
-                    const peersJson = network.get_discovered_peers();
-                    const peers = JSON.parse(peersJson);
-                    document.getElementById('totalPeers').textContent = peers.length;
+                } catch (error) {
+                    addLog(`❌ Failed to auto-connect: ${error.message}`, 'error');
+                    addLog('💡 Try rebuilding WASM module with "./build.sh"', 'info');
+                    setStatus('❌ Auto-connection failed', 'error');
+                }
+            });
+
+            document.getElementById('checkNodeAvailability').addEventListener('click', () => {
+                if (!network) {
+                    addLog('❌ Create a network first!', 'error');
+                    return;
+                }
+                
+                addLog('📊 Checking node availability...', 'info');
+                updateNodeAvailabilityStats();
+                
+                try {
+                    const freeNodesJson = network.find_free_nodes();
+                    const freeNodes = JSON.parse(freeNodesJson);
+                    addLog(`🔍 Found ${freeNodes.length} free nodes available for processing`, 'p2p');
+                    
+                    freeNodes.forEach(node => {
+                        addLog(`🟢 Free node: ${node.device_id} - Load: ${(node.node_status.processing_load * 100).toFixed(1)}%, Available nodes: ${node.available_nodes}`, 'info');
+                    });
+                    
+                    if (freeNodes.length === 0) {
+                        addLog('⚠️ No free nodes currently available. All peers are busy.', 'warning');
+                    }
+                } catch (e) {
+                    addLog('❌ Free node detection not available yet. Please rebuild WASM module.', 'error');
+                    addLog('💡 Run "./build.sh" to rebuild with latest features.', 'info');
+                }
+            });
+
+            function updateNodeAvailabilityStats() {
+                if (!network) return;
+                
+                try {
+                    if (typeof network.get_node_availability_stats === 'function') {
+                        const statsJson = network.get_node_availability_stats();
+                        const stats = JSON.parse(statsJson);
+                        
+                        document.getElementById('totalPeers').textContent = stats.total_peers || 0;
+                        document.getElementById('freeNodes').textContent = stats.free_nodes || 0;
+                        document.getElementById('busyNodes').textContent = stats.busy_nodes || 0;
+                        document.getElementById('availabilityRatio').textContent = 
+                            `${Math.round((stats.availability_ratio || 0) * 100)}%`;
+                        
+                        // Update color based on availability
+                        const availabilityElement = document.getElementById('availabilityRatio');
+                        const ratio = stats.availability_ratio || 0;
+                        if (ratio > 0.7) {
+                            availabilityElement.style.color = '#4CAF50'; // Green
+                        } else if (ratio > 0.3) {
+                            availabilityElement.style.color = '#FF9800'; // Orange
+                        } else {
+                            availabilityElement.style.color = '#F44336'; // Red
+                        }
+                    } else {
+                        // Fallback: use basic peer count
+                        const peersJson = network.get_discovered_peers();
+                        const peers = JSON.parse(peersJson);
+                        document.getElementById('totalPeers').textContent = peers.length;
+                        document.getElementById('freeNodes').textContent = '?';
+                        document.getElementById('busyNodes').textContent = '?';
+                        document.getElementById('availabilityRatio').textContent = 'N/A';
+                    }
+                } catch (e) {
+                    console.warn('Failed to update node availability stats:', e);
+                    // Set fallback values
+                    document.getElementById('totalPeers').textContent = '0';
                     document.getElementById('freeNodes').textContent = '?';
                     document.getElementById('busyNodes').textContent = '?';
                     document.getElementById('availabilityRatio').textContent = 'N/A';
                 }
-            } catch (e) {
-                console.warn('Failed to update node availability stats:', e);
-                // Set fallback values
-                document.getElementById('totalPeers').textContent = '0';
-                document.getElementById('freeNodes').textContent = '?';
-                document.getElementById('busyNodes').textContent = '?';
-                document.getElementById('availabilityRatio').textContent = 'N/A';
             }
-        }
 
-        document.getElementById('sendDirectMessage').addEventListener('click', () => {
-            const message = document.getElementById('messageText').value;
-            const peerId = document.getElementById('targetPeerId').value;
-            if (network && message && peerId) {
+            document.getElementById('sendDirectMessage').addEventListener('click', () => {
+                const message = document.getElementById('messageText').value;
+                const peerId = document.getElementById('targetPeerId').value;
+                if (network && message && peerId) {
+                    try {
+                        network.send_direct_message(message);
+                        addLog(`📤 Sent direct P2P message to ${peerId}: ${message}`, 'p2p');
+                    } catch (error) {
+                        addLog(`❌ Failed to send direct message: ${error}`, 'error');
+                    }
+                } else {
+                    addLog('❌ Enter peer ID and message first', 'error');
+                }
+            });
+
+            document.getElementById('requestNodeFromPeer').addEventListener('click', () => {
+                const peerId = document.getElementById('peerIdForRequest').value;
+                if (network && peerId) {
+                    const requestId = network.request_node_from_peer(peerId, 'inference', 30);
+                    if (requestId) {
+                        addLog(`📤 Requested node from peer ${peerId}, request ID: ${requestId}`, 'p2p');
+                    } else {
+                        addLog(`❌ Failed to request node from peer: ${peerId}`, 'error');
+                    }
+                }
+            });
+
+            document.getElementById('shareMemoryWithPeer').addEventListener('click', () => {
+                const peerId = document.getElementById('peerIdForRequest').value;
+                const clusterId = document.getElementById('clusterId').value;
+                if (network && peerId && clusterId) {
+                    const success = network.share_memory_with_peer(peerId, clusterId);
+                    if (success) {
+                        addLog(`💾 Shared memory capsule with peer: ${peerId}`, 'p2p');
+                    } else {
+                        addLog(`❌ Failed to share memory with peer: ${peerId}`, 'error');
+                    }
+                }
+            });
+
+            document.getElementById('startCollabLearning').addEventListener('click', () => {
+                const peerList = document.getElementById('collaborativePeers').value;
+                const taskDesc = document.getElementById('taskDescription').value;
+                if (network && peerList && taskDesc) {
+                    const peerIds = peerList.split(',').map(p => p.trim());
+                    const sessionId = network.start_collaborative_learning(peerIds, taskDesc);
+                    if (sessionId) {
+                        addLog(`🎯 Started collaborative learning session: ${sessionId}`, 'p2p');
+                        addLog(`📚 Task: ${taskDesc}`, 'training');
+                        addLog(`👥 Participants: ${peerIds.length}`, 'training');
+                    } else {
+                        addLog('❌ Failed to start collaborative learning', 'error');
+                    }
+                }
+            });
+
+            document.getElementById('propagateError').addEventListener('click', () => {
+                const clusterId = document.getElementById('clusterId').value;
+                const urgency = parseInt(document.getElementById('errorUrgency').value);
+                if (network && clusterId) {
+                    const propagatedCount = network.propagate_error_to_peers(clusterId, urgency);
+                    addLog(`📡 Error propagated to ${propagatedCount} peers (urgency: ${urgency})`, 'p2p');
+                }
+            });
+
+            document.getElementById('checkWebRTCConnections').addEventListener('click', () => {
+                const peerId = document.getElementById('targetPeerId').value;
+                if (network && peerId) {
+                    const connected = network.check_webrtc_connections();
+                    addLog(`🔗 Connection to ${peerId}: ${connected ? 'CONNECTED ✅' : 'NOT CONNECTED ❌'}`, 
+                           connected ? 'p2p' : 'error');
+                } else {
+                    addLog('❌ Enter peer ID first', 'error');
+                }
+            });
+
+            document.getElementById('getWebRTCStats').addEventListener('click', () => {
+                if (webrtcManager) {
+                    try {
+                        const stats = JSON.parse(webrtcManager.get_connection_stats());
+                        addLog(`📊 WebRTC Stats: ${JSON.stringify(stats, null, 2)}`, 'p2p');
+                    } catch (error) {
+                        addLog(`❌ Failed to get WebRTC stats: ${error}`, 'error');
+                    }
+                } else {
+                    addLog('❌ Create a network first!', 'error');
+                }
+            });
+
+            // Auto-update P2P network visualization
+            function updateP2PNetworkStats() {
+                if (!network) return;
+
                 try {
-                    network.send_direct_message(message);
-                    addLog(`📤 Sent direct P2P message to ${peerId}: ${message}`, 'p2p');
-                } catch (error) {
-                    addLog(`❌ Failed to send direct message: ${error}`, 'error');
-                }
-            } else {
-                addLog('❌ Enter peer ID and message first', 'error');
-            }
-        });
-
-        document.getElementById('requestNodeFromPeer').addEventListener('click', () => {
-            const peerId = document.getElementById('peerIdForRequest').value;
-            if (network && peerId) {
-                const requestId = network.request_node_from_peer(peerId, 'inference', 30);
-                if (requestId) {
-                    addLog(`📤 Requested node from peer ${peerId}, request ID: ${requestId}`, 'p2p');
-                } else {
-                    addLog(`❌ Failed to request node from peer: ${peerId}`, 'error');
-                }
-            }
-        });
-
-        document.getElementById('shareMemoryWithPeer').addEventListener('click', () => {
-            const peerId = document.getElementById('peerIdForRequest').value;
-            const clusterId = document.getElementById('clusterId').value;
-            if (network && peerId && clusterId) {
-                const success = network.share_memory_with_peer(peerId, clusterId);
-                if (success) {
-                    addLog(`💾 Shared memory capsule with peer: ${peerId}`, 'p2p');
-                } else {
-                    addLog(`❌ Failed to share memory with peer: ${peerId}`, 'error');
-                }
-            }
-        });
-
-        document.getElementById('startCollabLearning').addEventListener('click', () => {
-            const peerList = document.getElementById('collaborativePeers').value;
-            const taskDesc = document.getElementById('taskDescription').value;
-            if (network && peerList && taskDesc) {
-                const peerIds = peerList.split(',').map(p => p.trim());
-                const sessionId = network.start_collaborative_learning(peerIds, taskDesc);
-                if (sessionId) {
-                    addLog(`🎯 Started collaborative learning session: ${sessionId}`, 'p2p');
-                    addLog(`📚 Task: ${taskDesc}`, 'training');
-                    addLog(`👥 Participants: ${peerIds.length}`, 'training');
-                } else {
-                    addLog('❌ Failed to start collaborative learning', 'error');
-                }
-            }
-        });
-
-        document.getElementById('propagateError').addEventListener('click', () => {
-            const clusterId = document.getElementById('clusterId').value;
-            const urgency = parseInt(document.getElementById('errorUrgency').value);
-            if (network && clusterId) {
-                const propagatedCount = network.propagate_error_to_peers(clusterId, urgency);
-                addLog(`📡 Error propagated to ${propagatedCount} peers (urgency: ${urgency})`, 'p2p');
-            }
-        });
-
-        document.getElementById('checkWebRTCConnections').addEventListener('click', () => {
-            const peerId = document.getElementById('targetPeerId').value;
-            if (network && peerId) {
-                const connected = network.check_webrtc_connections();
-                addLog(`🔗 Connection to ${peerId}: ${connected ? 'CONNECTED ✅' : 'NOT CONNECTED ❌'}`, 
-                       connected ? 'p2p' : 'error');
-            } else {
-                addLog('❌ Enter peer ID first', 'error');
-            }
-        });
-
-        document.getElementById('getWebRTCStats').addEventListener('click', () => {
-            if (webrtcManager) {
-                try {
-                    const stats = JSON.parse(webrtcManager.get_connection_stats());
-                    addLog(`📊 WebRTC Stats: ${JSON.stringify(stats, null, 2)}`, 'p2p');
-                } catch (error) {
-                    addLog(`❌ Failed to get WebRTC stats: ${error}`, 'error');
-                }
-            } else {
-                addLog('❌ Create a network first!', 'error');
-            }
-        });
-
-        // Auto-update P2P network visualization
-        function updateP2PNetworkStats() {
-            if (!network) return;
-
-            try {
-                const stats = network.get_p2p_network_stats();
-                if (stats) {
-                    document.getElementById('connectedPeers').textContent = stats.connected_peers || 0;
-                    document.getElementById('knownPeers').textContent = stats.known_peers || 0;
-                    document.getElementById('pendingMessages').textContent = stats.pending_messages || 0;
-                    document.getElementById('avgLatency').textContent = `${Math.round(stats.average_latency || 0)}ms`;
-                    document.getElementById('networkHealth').textContent = `${Math.round((stats.network_health || 0) * 100)}%`;
+                    const stats = network.get_p2p_network_stats();
+                    if (stats) {
+                        document.getElementById('connectedPeers').textContent = stats.connected_peers || 0;
+                        document.getElementById('knownPeers').textContent = stats.known_peers || 0;
+                        document.getElementById('pendingMessages').textContent = stats.pending_messages || 0;
+                        document.getElementById('avgLatency').textContent = `${Math.round(stats.average_latency || 0)}ms`;
+                        document.getElementById('networkHealth').textContent = `${Math.round((stats.network_health || 0) * 100)}%`;
+                        
+                        drawP2PStatsChart(stats);
+                    }
                     
-                    drawP2PStatsChart(stats);
+                    // Check for successful auto-connections
+                    const targetPeerId = document.getElementById('targetPeerId').value;
+                    if (targetPeerId && network.check_webrtc_connections()) {
+                        const isConnected = network.is_peer_connected_webrtc(targetPeerId);
+                        if (isConnected) {
+                            // Update status if we successfully connected
+                            const currentStatus = document.getElementById('status').textContent;
+                            if (currentStatus.includes('connecting')) {
+                                setStatus('🟢 WebRTC connected to peer', 'ready');
+                                addLog(`✅ Successfully connected to auto-selected peer: ${targetPeerId}`, 'p2p');
+                                
+                                // Update the peer list to show connection status
+                                updateDiscoveredPeers(JSON.parse(network.get_discovered_peers()));
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to update P2P stats:', e);
                 }
-                
-                // Check for successful auto-connections
+            }
+            
+            // Monitor auto-connection progress
+            function monitorAutoConnection() {
                 const targetPeerId = document.getElementById('targetPeerId').value;
-                if (targetPeerId && network.check_webrtc_connections()) {
+                if (targetPeerId && network) {
                     const isConnected = network.is_peer_connected_webrtc(targetPeerId);
                     if (isConnected) {
-                        // Update status if we successfully connected
-                        const currentStatus = document.getElementById('status').textContent;
-                        if (currentStatus.includes('connecting')) {
-                            setStatus('🟢 WebRTC connected to peer', 'ready');
-                            addLog(`✅ Successfully connected to auto-selected peer: ${targetPeerId}`, 'p2p');
-                            
-                            // Update the peer list to show connection status
-                            updateDiscoveredPeers(JSON.parse(network.get_discovered_peers()));
-                        }
+                        addLog(`🔗 Auto-connection established with: ${targetPeerId}`, 'p2p');
+                        
+                        // Try sending a test message
+                        setTimeout(() => {
+                            try {
+                                network.send_direct_message("Hello from auto-connected peer!");
+                                addLog(`📤 Sent test message to auto-connected peer: ${targetPeerId}`, 'p2p');
+                            } catch (e) {
+                                addLog(`⚠️ Could not send test message: ${e.message}`, 'warning');
+                            }
+                        }, 2000);
+                        
+                        return true; // Connection established
                     }
                 }
-            } catch (e) {
-                console.warn('Failed to update P2P stats:', e);
+                return false; // Still connecting or no target
             }
-        }
-        
-        // Monitor auto-connection progress
-        function monitorAutoConnection() {
-            const targetPeerId = document.getElementById('targetPeerId').value;
-            if (targetPeerId && network) {
-                const isConnected = network.is_peer_connected_webrtc(targetPeerId);
-                if (isConnected) {
-                    addLog(`🔗 Auto-connection established with: ${targetPeerId}`, 'p2p');
+            
+            // Initialize WASM module
+            async function initializeDemo() {
+                try {
+                    // Initialize device ID first
+                    initializeDeviceId();
+                    monitorDeviceIdChanges();
                     
-                    // Try sending a test message
+                    // Initialize signaling server URL
+                    initializeSignalingServer();
+                    monitorSignalingServerChanges();
+                    
+                    await init();
+                    setStatus('🟢 WASM module loaded successfully', 'ready');
+                    addLog('Distributed Neural Network with Blockchain WASM module initialized');
+                    addLog('Ready to create networks and process data');
+                    addLog(`🔒 Device ID locked: ${currentDeviceId}`, 'info');
+                    addLog(`🌐 Signaling server ready: ${currentSignalingServer}`, 'info');
+                    
+                    // Check if new features are available
+                    if (network && typeof network.find_free_nodes === 'function') {
+                        addLog('✅ Advanced free node detection available', 'info');
+                    } else {
+                        addLog('⚠️ Using fallback mode - rebuild WASM for advanced features', 'warning');
+                        addLog('💡 Run "./build.sh" to enable free node detection', 'info');
+                    }
+                    
+                    // Enable controls
+                    document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+                    
+                } catch (error) {
+                    setStatus('❌ Failed to load WASM module', 'error');
+                    addLog(`Error: ${error.message}`, 'error');
+                    console.error(error);
+                }
+            }
+            
+            // Start demo
+            initializeDemo();
+            
+            // Auto-run demo after 2 seconds if user hasn't interacted
+            setTimeout(() => {
+                if (!network) {
+                    document.getElementById('createCluster').click();
                     setTimeout(() => {
-                        try {
-                            network.send_direct_message("Hello from auto-connected peer!");
-                            addLog(`📤 Sent test message to auto-connected peer: ${targetPeerId}`, 'p2p');
-                        } catch (e) {
-                            addLog(`⚠️ Could not send test message: ${e.message}`, 'warning');
+                        document.getElementById('processInput').click();
+                    }, 1000);
+                }
+            }, 2000);
+
+            // Auto-update blockchain chart periodically
+            setInterval(() => {
+                if (network) {
+                    drawBlockchainChart();
+                    updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
+                }
+            }, 5000);
+
+            // Main update loop
+            function updateDisplay() {
+                if (network) {
+                    const clusterId = document.getElementById('clusterId').value;
+                    if (clusterId) {
+                        // Update existing metrics
+                        const state = network.get_cluster_state(clusterId);
+                        if (state) {
+                            updateMetrics(state);
+                            drawTopologyChart(state.num_nodes, state.num_connections);
                         }
-                    }, 2000);
-                    
-                    return true; // Connection established
-                }
-            }
-            return false; // Still connecting or no target
-        }
-        
-        // Initialize WASM module
-        async function initializeDemo() {
-            try {
-                // Initialize device ID first
-                initializeDeviceId();
-                monitorDeviceIdChanges();
-                
-                // Initialize signaling server URL
-                initializeSignalingServer();
-                monitorSignalingServerChanges();
-                
-                await init();
-                setStatus('🟢 WASM module loaded successfully', 'ready');
-                addLog('Distributed Neural Network with Blockchain WASM module initialized');
-                addLog('Ready to create networks and process data');
-                addLog(`🔒 Device ID locked: ${currentDeviceId}`, 'info');
-                addLog(`🌐 Signaling server ready: ${currentSignalingServer}`, 'info');
-                
-                // Check if new features are available
-                if (network && typeof network.find_free_nodes === 'function') {
-                    addLog('✅ Advanced free node detection available', 'info');
-                } else {
-                    addLog('⚠️ Using fallback mode - rebuild WASM for advanced features', 'warning');
-                    addLog('💡 Run "./build.sh" to enable free node detection', 'info');
-                }
-                
-                // Enable controls
-                document.querySelectorAll('button').forEach(btn => btn.disabled = false);
-                
-            } catch (error) {
-                setStatus('❌ Failed to load WASM module', 'error');
-                addLog(`Error: ${error.message}`, 'error');
-                console.error(error);
-            }
-        }
-        
-        // Start demo
-        initializeDemo();
-        
-        // Auto-run demo after 2 seconds if user hasn't interacted
-        setTimeout(() => {
-            if (!network) {
-                document.getElementById('createCluster').click();
-                setTimeout(() => {
-                    document.getElementById('processInput').click();
-                }, 1000);
-            }
-        }, 2000);
-
-        // Auto-update blockchain chart periodically
-        setInterval(() => {
-            if (network) {
-                drawBlockchainChart();
-                updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
-            }
-        }, 5000);
-
-        // Main update loop
-        function updateDisplay() {
-            if (network) {
-                const clusterId = document.getElementById('clusterId').value;
-                if (clusterId) {
-                    // Update existing metrics
-                    const state = network.get_cluster_state(clusterId);
-                    if (state) {
-                        updateMetrics(state);
-                        drawTopologyChart(state.num_nodes, state.num_connections);
+                        
+                        // Update blockchain metrics
+                        updateBlockchainStats();
+                        
+                        // Update vector database stats
+                        updateVectorDBStats();
+                        
+                        // Update P2P network stats and check auto-connections
+                        updateP2PNetworkStats();
+                        
+                        // Monitor auto-connection progress
+                        monitorAutoConnection();
+                        
+                        // Update node availability stats
+                        updateNodeAvailabilityStats();
+                        
+                        // Process training
+                        network.step_simulation(16.0); // ~60fps
                     }
-                    
-                    // Update blockchain metrics
-                    updateBlockchainStats();
-                    
-                    // Update vector database stats
-                    updateVectorDBStats();
-                    
-                    // Update P2P network stats and check auto-connections
-                    updateP2PNetworkStats();
-                    
-                    // Monitor auto-connection progress
-                    monitorAutoConnection();
-                    
-                    // Update node availability stats
-                    updateNodeAvailabilityStats();
-                    
-                    // Process training
-                    network.step_simulation(16.0); // ~60fps
                 }
             }
-        }
-        
-        // Start the update loop
-        setInterval(updateDisplay, 1000); // Update every second
+            
+            // Start the update loop
+            setInterval(updateDisplay, 1000); // Update every second
 
-        document.getElementById('closeWebRTCConnection').addEventListener('click', () => {
-            const connectedPeer = document.getElementById('connectedPeer').textContent;
-            if (network && connectedPeer !== 'None') {
-                const success = network.close_webrtc_connection(connectedPeer);
-                if (success) {
-                    addLog(`🔒 Closed WebRTC connection to peer: ${connectedPeer}`, 'p2p');
-                    setStatus('🌐 WebRTC disconnected', 'ready');
-                    document.getElementById('connectedPeer').textContent = 'None';
-                    updateNodeAvailabilityStats();
-                } else {
-                    addLog(`❌ Failed to close WebRTC connection to peer: ${connectedPeer}`, 'error');
+            function updateBlockchainStats() {
+                // Update blockchain metrics if available
+                if (network) {
+                    try {
+                        const balance = network.get_account_balance();
+                        document.getElementById('accountBalanceMetric').textContent = balance.toFixed(2);
+                        
+                        const blockchainStats = network.get_blockchain_stats();
+                        if (blockchainStats) {
+                            document.getElementById('totalBlocksMetric').textContent = blockchainStats.total_blocks;
+                            document.getElementById('memoryCapsulesMetric').textContent = blockchainStats.total_memory_capsules;
+                        }
+                    } catch (e) {
+                        // Blockchain stats not available yet, ignore silently
+                    }
                 }
-            } else {
-                addLog('❌ No active connection to close', 'warning');
             }
+            
+            function updateVectorDBStats() {
+                // Update vector database stats if available
+                if (network) {
+                    try {
+                        // Vector DB stats would go here when implemented
+                        // For now, this is a placeholder
+                    } catch (e) {
+                        // Vector DB stats not available yet, ignore silently
+                    }
+                }
+            }
+
+            // Event handlers (continued)
+            document.getElementById('closeWebRTCConnection').addEventListener('click', () => {
+                const connectedPeer = document.getElementById('connectedPeer').textContent;
+                if (network && connectedPeer !== 'None') {
+                    const success = network.close_webrtc_connection(connectedPeer);
+                    if (success) {
+                        addLog(`🔒 Closed WebRTC connection to peer: ${connectedPeer}`, 'p2p');
+                        setStatus('🌐 WebRTC disconnected', 'ready');
+                        document.getElementById('connectedPeer').textContent = 'None';
+                        updateNodeAvailabilityStats();
+                    } else {
+                        addLog(`❌ Failed to close WebRTC connection to peer: ${connectedPeer}`, 'error');
+                    }
+                } else {
+                    addLog('❌ No active connection to close', 'warning');
+                }
+            });
+        }).catch(error => {
+            setStatus('❌ Failed to load WASM module', 'error');
+            addLog(`Error: ${error.message}`, 'error');
+            console.error(error);
         });
-
-        function updateBlockchainStats() {
-            // Update blockchain metrics if available
-            if (network) {
-                try {
-                    const balance = network.get_account_balance();
-                    document.getElementById('accountBalanceMetric').textContent = balance.toFixed(2);
-                    
-                    const blockchainStats = network.get_blockchain_stats();
-                    if (blockchainStats) {
-                        document.getElementById('totalBlocksMetric').textContent = blockchainStats.total_blocks;
-                        document.getElementById('memoryCapsulesMetric').textContent = blockchainStats.total_memory_capsules;
-                    }
-                } catch (e) {
-                    // Blockchain stats not available yet, ignore silently
-                }
-            }
-        }
-        
-        function updateVectorDBStats() {
-            // Update vector database stats if available
-            if (network) {
-                try {
-                    // Vector DB stats would go here when implemented
-                    // For now, this is a placeholder
-                } catch (e) {
-                    // Vector DB stats not available yet, ignore silently
-                }
-            }
-        }
     </script>
 </body>
-</html> 
+</html>
