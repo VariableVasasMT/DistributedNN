@@ -732,6 +732,65 @@
             ctx.fillText(`Accounts: ${stats.total_accounts}`, 20, 90);
         }
         
+        function drawP2PStatsChart(stats) {
+            const canvas = document.getElementById('p2pStatsChart');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Network health visualization
+            const healthPercent = (stats.network_health || 0) * 100;
+            const healthColor = healthPercent > 70 ? '#4CAF50' : healthPercent > 40 ? '#FF9800' : '#F44336';
+            
+            // Health bar
+            ctx.fillStyle = healthColor;
+            ctx.fillRect(20, 20, (canvas.width - 40) * (healthPercent / 100), 30);
+            
+            // Health border
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(20, 20, canvas.width - 40, 30);
+            
+            // Health label
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Network Health: ${Math.round(healthPercent)}%`, canvas.width / 2, 40);
+            
+            // Connection stats
+            const connectedPeers = stats.connected_peers || 0;
+            const knownPeers = stats.known_peers || 0;
+            
+            // Peer connection visualization
+            ctx.fillStyle = '#00BCD4';
+            ctx.fillRect(20, 70, Math.min(connectedPeers * 30, canvas.width - 40), 20);
+            
+            ctx.fillStyle = 'rgba(156, 39, 176, 0.5)';
+            ctx.fillRect(20, 100, Math.min(knownPeers * 20, canvas.width - 40), 20);
+            
+            // Labels
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Connected: ${connectedPeers}`, 25, 85);
+            ctx.fillText(`Known: ${knownPeers}`, 25, 115);
+            
+            // Latency indicator
+            const avgLatency = stats.average_latency || 0;
+            const latencyColor = avgLatency < 100 ? '#4CAF50' : avgLatency < 300 ? '#FF9800' : '#F44336';
+            
+            ctx.fillStyle = latencyColor;
+            ctx.fillRect(20, 140, Math.min(avgLatency / 2, canvas.width - 40), 15);
+            
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`Avg Latency: ${Math.round(avgLatency)}ms`, 25, 152);
+        }
+        
         // Event handlers
         document.getElementById('createCluster').addEventListener('click', () => {
             const deviceId = currentDeviceId; // Use the persistent device ID
@@ -918,31 +977,99 @@
                 // Configure signaling server before starting discovery if not already configured
                 const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
                 if (signalingUrl) {
-                    network.configure_signaling_server(signalingUrl);
-                    addLog(`🌐 Using signaling server: ${signalingUrl}`, 'p2p');
+                    const configSuccess = network.configure_signaling_server(signalingUrl);
+                    if (configSuccess) {
+                        addLog(`🌐 Connected to signaling server: ${signalingUrl}`, 'p2p');
+                        
+                        // Wait for connection to establish, then start discovery
+                        setTimeout(() => {
+                            if (network.is_connected_to_signaling_server()) {
+                                const success = network.start_peer_discovery();
+                                if (success) {
+                                    addLog('🔍 Started real peer discovery protocol', 'p2p');
+                                    setStatus('🌐 Discovering real peers', 'connecting');
+                                    
+                                    // Set up discovery result polling
+                                    setupDiscoveryPolling();
+                                } else {
+                                    addLog('❌ Failed to start peer discovery', 'error');
+                                }
+                            } else {
+                                addLog('❌ Not connected to signaling server', 'error');
+                            }
+                        }, 1000); // Wait 1 second for WebSocket connection
+                    } else {
+                        addLog('❌ Failed to connect to signaling server', 'error');
+                    }
                 } else {
                     addLog('❌ No signaling server configured', 'error');
                     return;
-                }
-                
-                const success = network.start_peer_discovery();
-                if (success) {
-                    addLog('🔍 Started peer discovery protocol', 'p2p');
-                    setStatus('🌐 Discovering peers', 'connecting');
-                    
-                    // Update discovered peers display
-                    setTimeout(() => {
-                        const peers = JSON.parse(network.get_discovered_peers());
-                        updateDiscoveredPeers(peers);
-                        addLog(`🔍 Found ${peers.length} peers`, 'p2p');
-                    }, 1000);
-                } else {
-                    addLog('❌ Failed to start peer discovery', 'error');
                 }
             } else {
                 addLog('❌ Create a network first!', 'error');
             }
         });
+
+        // Set up polling for discovery results
+        function setupDiscoveryPolling() {
+            let pollCount = 0;
+            const maxPolls = 10; // Poll for 5 seconds
+            
+            const pollInterval = setInterval(() => {
+                pollCount++;
+                
+                if (!network) {
+                    clearInterval(pollInterval);
+                    return;
+                }
+                
+                const peersJson = network.get_discovered_peers();
+                let peers = [];
+                
+                try {
+                    peers = JSON.parse(peersJson);
+                } catch (e) {
+                    console.warn('Failed to parse peers JSON:', e);
+                }
+                
+                if (peers.length > 0) {
+                    clearInterval(pollInterval);
+                    addLog(`🔍 Found ${peers.length} real peers from signaling server!`, 'p2p');
+                    
+                    // Process real peers
+                    updateDiscoveredPeers(peers);
+                    
+                    // Auto-select and connect to a random real peer
+                    if (peers.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * peers.length);
+                        const selectedPeer = peers[randomIndex];
+                        
+                        addLog(`🎯 Auto-selected real peer: ${selectedPeer.device_id}`, 'p2p');
+                        addLog(`📋 Real peer capabilities: ${selectedPeer.capabilities.join(', ')}`, 'info');
+                        
+                        // Set the target peer ID in the input
+                        document.getElementById('targetPeerId').value = selectedPeer.device_id;
+                        
+                        // Automatically initiate WebRTC connection to real peer
+                        setTimeout(() => {
+                            addLog(`🤝 Auto-connecting to real peer: ${selectedPeer.device_id}`, 'p2p');
+                            const connectionSuccess = network.initiate_webrtc_connection(selectedPeer.device_id);
+                            if (connectionSuccess) {
+                                addLog(`✅ WebRTC connection initiated to real peer: ${selectedPeer.device_id}`, 'p2p');
+                                setStatus('🌐 WebRTC connecting to real peer', 'connecting');
+                            } else {
+                                addLog(`❌ Failed to initiate WebRTC connection to real peer: ${selectedPeer.device_id}`, 'error');
+                            }
+                        }, 1000); // Wait 1 second before connecting
+                    }
+                } else if (pollCount >= maxPolls) {
+                    clearInterval(pollInterval);
+                    addLog('🔍 No real peers found after 5 seconds. Try opening another browser tab/window.', 'warning');
+                    addLog('💡 Multiple devices or browser instances needed for real peer discovery.', 'info');
+                    setStatus('🟡 No peers found', 'ready');
+                }
+            }, 500); // Poll every 500ms
+        }
 
         function updateDiscoveredPeers(peers) {
             const peerContainer = document.getElementById('discoveredPeers');
@@ -951,12 +1078,26 @@
                 return;
             }
             
-            peerContainer.innerHTML = peers.map(peer => `
-                <div style="background: rgba(255, 255, 255, 0.1); padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
-                    <span><strong>${peer.device_id}</strong> - ${peer.capabilities.join(', ')}</span>
-                    <button onclick="connectToPeer('${peer.device_id}')" style="padding: 5px 10px; background: #9C27B0; color: white; border: none; border-radius: 3px; cursor: pointer;">Connect</button>
-                </div>
-            `).join('');
+            const selectedPeerId = document.getElementById('targetPeerId').value;
+            
+            peerContainer.innerHTML = peers.map(peer => {
+                const isSelected = peer.device_id === selectedPeerId;
+                const bgColor = isSelected ? 'rgba(255, 215, 0, 0.3)' : 'rgba(255, 255, 255, 0.1)';
+                const borderColor = isSelected ? '#ffd700' : 'transparent';
+                const selectedLabel = isSelected ? ' 🎯 [AUTO-SELECTED]' : '';
+                
+                return `
+                    <div style="background: ${bgColor}; border: 2px solid ${borderColor}; padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                        <span><strong>${peer.device_id}</strong>${selectedLabel}<br>
+                              <small style="color: rgba(255,255,255,0.7);">Capabilities: ${peer.capabilities.join(', ')}</small><br>
+                              <small style="color: rgba(255,255,255,0.6);">Specializations: ${peer.cluster_specializations ? peer.cluster_specializations.join(', ') : 'None'}</small>
+                        </span>
+                        <button onclick="connectToPeer('${peer.device_id}')" style="padding: 5px 10px; background: #9C27B0; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                            ${isSelected ? 'Selected' : 'Connect'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
         }
 
         window.connectToPeer = function(peerId) {
@@ -1083,7 +1224,7 @@
             }
         });
 
-        // Update P2P network visualization
+        // Auto-update P2P network visualization
         function updateP2PNetworkStats() {
             if (!network) return;
 
@@ -1098,68 +1239,50 @@
                     
                     drawP2PStatsChart(stats);
                 }
+                
+                // Check for successful auto-connections
+                const targetPeerId = document.getElementById('targetPeerId').value;
+                if (targetPeerId && network.check_webrtc_connections()) {
+                    const isConnected = network.is_peer_connected_webrtc(targetPeerId);
+                    if (isConnected) {
+                        // Update status if we successfully connected
+                        const currentStatus = document.getElementById('status').textContent;
+                        if (currentStatus.includes('connecting')) {
+                            setStatus('🟢 WebRTC connected to peer', 'ready');
+                            addLog(`✅ Successfully connected to auto-selected peer: ${targetPeerId}`, 'p2p');
+                            
+                            // Update the peer list to show connection status
+                            updateDiscoveredPeers(JSON.parse(network.get_discovered_peers()));
+                        }
+                    }
+                }
             } catch (e) {
                 console.warn('Failed to update P2P stats:', e);
             }
         }
-
-        function drawP2PStatsChart(stats) {
-            const canvas = document.getElementById('p2pStatsChart');
-            const ctx = canvas.getContext('2d');
-            
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Background
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Network health visualization
-            const healthPercent = (stats.network_health || 0) * 100;
-            const healthColor = healthPercent > 70 ? '#4CAF50' : healthPercent > 40 ? '#FF9800' : '#F44336';
-            
-            // Health bar
-            ctx.fillStyle = healthColor;
-            ctx.fillRect(20, 20, (canvas.width - 40) * (healthPercent / 100), 30);
-            
-            // Health border
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(20, 20, canvas.width - 40, 30);
-            
-            // Health label
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(`Network Health: ${Math.round(healthPercent)}%`, canvas.width / 2, 40);
-            
-            // Connection stats
-            const connectedPeers = stats.connected_peers || 0;
-            const knownPeers = stats.known_peers || 0;
-            
-            // Peer connection visualization
-            ctx.fillStyle = '#00BCD4';
-            ctx.fillRect(20, 70, Math.min(connectedPeers * 30, canvas.width - 40), 20);
-            
-            ctx.fillStyle = 'rgba(156, 39, 176, 0.5)';
-            ctx.fillRect(20, 100, Math.min(knownPeers * 20, canvas.width - 40), 20);
-            
-            // Labels
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(`Connected: ${connectedPeers}`, 25, 85);
-            ctx.fillText(`Known: ${knownPeers}`, 25, 115);
-            
-            // Latency indicator
-            const avgLatency = stats.average_latency || 0;
-            const latencyColor = avgLatency < 100 ? '#4CAF50' : avgLatency < 300 ? '#FF9800' : '#F44336';
-            
-            ctx.fillStyle = latencyColor;
-            ctx.fillRect(20, 140, Math.min(avgLatency / 2, canvas.width - 40), 15);
-            
-            ctx.fillStyle = '#fff';
-            ctx.fillText(`Avg Latency: ${Math.round(avgLatency)}ms`, 25, 152);
+        
+        // Monitor auto-connection progress
+        function monitorAutoConnection() {
+            const targetPeerId = document.getElementById('targetPeerId').value;
+            if (targetPeerId && network) {
+                const isConnected = network.is_peer_connected_webrtc(targetPeerId);
+                if (isConnected) {
+                    addLog(`🔗 Auto-connection established with: ${targetPeerId}`, 'p2p');
+                    
+                    // Try sending a test message
+                    setTimeout(() => {
+                        try {
+                            network.send_direct_message("Hello from auto-connected peer!");
+                            addLog(`📤 Sent test message to auto-connected peer: ${targetPeerId}`, 'p2p');
+                        } catch (e) {
+                            addLog(`⚠️ Could not send test message: ${e.message}`, 'warning');
+                        }
+                    }, 2000);
+                    
+                    return true; // Connection established
+                }
+            }
+            return false; // Still connecting or no target
         }
         
         // Initialize WASM module
@@ -1229,14 +1352,20 @@
                     // Update vector database stats
                     updateVectorDBStats();
                     
-                    // Update P2P network stats
+                    // Update P2P network stats and check auto-connections
                     updateP2PNetworkStats();
+                    
+                    // Monitor auto-connection progress
+                    monitorAutoConnection();
                     
                     // Process training
                     network.step_simulation(16.0); // ~60fps
                 }
             }
         }
+        
+        // Start the update loop
+        setInterval(updateDisplay, 1000); // Update every second
     </script>
 </body>
 </html> 

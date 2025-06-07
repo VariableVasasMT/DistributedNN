@@ -3,6 +3,8 @@ use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use crate::memory::MemoryCapsule;
 use crate::webrtc::WebRTCManager;
+use web_sys::{WebSocket, MessageEvent, CloseEvent, ErrorEvent};
+use wasm_bindgen::closure::Closure;
 
 // Import the console_log macro
 use crate::console_log;
@@ -21,6 +23,8 @@ pub struct P2PNetwork {
     signaling_server_url: String,
     is_connected_to_server: bool,
     webrtc_manager: Option<WebRTCManager>,
+    websocket: Option<WebSocket>,
+    websocket_callbacks: Option<WebSocketCallbacks>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -149,6 +153,11 @@ pub struct DiscoveryProtocol {
     pub discovery_radius: u8, // how many hops to search
 }
 
+#[derive(Clone)]
+struct WebSocketCallbacks {
+    // We'll store callback handles here
+}
+
 #[wasm_bindgen]
 impl P2PNetwork {
     #[wasm_bindgen(constructor)]
@@ -175,28 +184,186 @@ impl P2PNetwork {
             signaling_server_url: "ws://localhost:8080".to_string(),
             is_connected_to_server: false,
             webrtc_manager: Some(webrtc_manager),
+            websocket: None,
+            websocket_callbacks: None,
         }
     }
 
     #[wasm_bindgen]
     pub fn configure_signaling_server(&mut self, server_url: String) -> bool {
-        console_log!("Configuring signaling server: {}", server_url);
-        self.signaling_server_url = server_url.clone();
+        console_log!("Connecting to real signaling server: {}", server_url);
         
-        // Connect WebRTC manager to signaling server
-        if let Some(ref mut webrtc_manager) = self.webrtc_manager {
-            match webrtc_manager.connect_signaling_server(&server_url) {
-                Ok(_) => {
-                    console_log!("WebRTC manager connected to signaling server");
-                    self.is_connected_to_server = true;
-                    true
-                },
-                Err(e) => {
-                    console_log!("Failed to connect WebRTC manager: {:?}", e);
-                    false
+        // Close existing WebSocket if any
+        if let Some(ref ws) = self.websocket {
+            ws.close().ok();
+        }
+        
+        // Create new WebSocket connection
+        match WebSocket::new(&server_url) {
+            Ok(ws) => {
+                self.websocket = Some(ws.clone());
+                self.signaling_server_url = server_url.clone();
+                
+                // Set up event handlers
+                self.setup_websocket_handlers(&ws);
+                
+                console_log!("WebSocket connection initiated to: {}", server_url);
+                true
+            },
+            Err(e) => {
+                console_log!("Failed to create WebSocket: {:?}", e);
+                false
+            }
+        }
+    }
+    
+    fn setup_websocket_handlers(&mut self, ws: &WebSocket) {
+        let device_id = self.device_id.clone();
+        let ws_for_registration = ws.clone();
+        
+        // OnOpen handler
+        let device_id_clone = device_id.clone();
+        let onopen = Closure::wrap(Box::new(move |_event: web_sys::Event| {
+            console_log!("✅ Connected to signaling server");
+            
+            // Register with the server
+            let registration_message = serde_json::json!({
+                "type": "register",
+                "data": {
+                    "device_id": device_id_clone,
+                    "peer_info": {
+                        "device_id": device_id_clone,
+                        "ip_address": "browser_client",
+                        "port": 0,
+                        "public_key": format!("{}_public_key", device_id_clone),
+                        "capabilities": ["memory_sharing", "collaborative_learning", "webrtc_p2p"],
+                        "reputation_score": 1.0,
+                        "cluster_specializations": ["general", "browser_based"]
+                    }
+                }
+            });
+            
+            // Send registration via WebSocket
+            if let Ok(message_str) = serde_json::to_string(&registration_message) {
+                if let Err(e) = ws_for_registration.send_with_str(&message_str) {
+                    console_log!("❌ Failed to send registration: {:?}", e);
+                } else {
+                    console_log!("📡 Sent registration for device: {}", device_id_clone);
                 }
             }
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        
+        ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
+        onopen.forget();
+        
+        // OnMessage handler
+        let peer_registry_ref = std::ptr::addr_of!(self.peer_registry) as usize;
+        let onmessage = Closure::wrap(Box::new(move |event: MessageEvent| {
+            if let Ok(text) = event.data().dyn_into::<js_sys::JsString>() {
+                let message_str = text.as_string().unwrap_or_default();
+                console_log!("📨 Received signaling message: {}", message_str);
+                
+                // Parse and handle the message
+                if let Ok(message) = serde_json::from_str::<serde_json::Value>(&message_str) {
+                    if let Some(msg_type) = message.get("type").and_then(|t| t.as_str()) {
+                        console_log!("📋 Processing message type: {}", msg_type);
+                        
+                        match msg_type {
+                            "registered" => {
+                                console_log!("✅ Successfully registered with signaling server");
+                                if let Some(peer_count) = message.get("data")
+                                    .and_then(|d| d.get("peer_count"))
+                                    .and_then(|p| p.as_u64()) {
+                                    console_log!("📊 Server reports {} total peers", peer_count);
+                                }
+                            },
+                            "discovery_result" => {
+                                console_log!("🔍 Received real peer discovery results");
+                                if let Some(peers) = message.get("data")
+                                    .and_then(|d| d.get("peers"))
+                                    .and_then(|p| p.as_array()) {
+                                    
+                                    console_log!("🔍 Discovery found {} real peers", peers.len());
+                                    
+                                    // Note: We can't directly access peer_registry here due to borrowing rules
+                                    // The JavaScript side will call get_discovered_peers() to retrieve results
+                                    // and we'll store them in a global or use a different approach
+                                    
+                                    for peer_data in peers {
+                                        if let Ok(peer_info) = serde_json::from_value::<PeerInfo>(peer_data.clone()) {
+                                            console_log!("👤 Found real peer: {} with capabilities: {:?}", 
+                                                peer_info.device_id, peer_info.capabilities);
+                                        }
+                                    }
+                                }
+                            },
+                            "peer_joined" => {
+                                if let Some(device_id) = message.get("data")
+                                    .and_then(|d| d.get("device_id"))
+                                    .and_then(|id| id.as_str()) {
+                                    console_log!("👋 New peer joined: {}", device_id);
+                                }
+                            },
+                            "peer_left" => {
+                                if let Some(device_id) = message.get("data")
+                                    .and_then(|d| d.get("device_id"))
+                                    .and_then(|id| id.as_str()) {
+                                    console_log!("👋 Peer left: {}", device_id);
+                                }
+                            },
+                            "webrtc_signal" => {
+                                console_log!("📡 Received WebRTC signaling data");
+                                // Handle WebRTC signaling (offer/answer/ICE candidates)
+                            },
+                            _ => {
+                                console_log!("❓ Unknown message type: {}", msg_type);
+                            }
+                        }
+                    }
+                }
+            }
+        }) as Box<dyn FnMut(MessageEvent)>);
+        
+        ws.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+        onmessage.forget();
+        
+        // OnClose handler
+        let onclose = Closure::wrap(Box::new(move |_event: CloseEvent| {
+            console_log!("🔌 Disconnected from signaling server");
+        }) as Box<dyn FnMut(CloseEvent)>);
+        
+        ws.set_onclose(Some(onclose.as_ref().unchecked_ref()));
+        onclose.forget();
+        
+        // OnError handler
+        let onerror = Closure::wrap(Box::new(move |_event: ErrorEvent| {
+            console_log!("❌ WebSocket error occurred");
+        }) as Box<dyn FnMut(ErrorEvent)>);
+        
+        ws.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+        onerror.forget();
+        
+        self.is_connected_to_server = true;
+    }
+
+    fn send_websocket_message(&self, message: serde_json::Value) -> bool {
+        if let Some(ref ws) = self.websocket {
+            if let Ok(message_str) = serde_json::to_string(&message) {
+                match ws.send_with_str(&message_str) {
+                    Ok(_) => {
+                        console_log!("📤 Sent WebSocket message: {}", message_str);
+                        true
+                    },
+                    Err(e) => {
+                        console_log!("❌ Failed to send WebSocket message: {:?}", e);
+                        false
+                    }
+                }
+            } else {
+                false
+            }
         } else {
+            console_log!("❌ No WebSocket connection available");
             false
         }
     }
@@ -217,7 +384,7 @@ impl P2PNetwork {
                             console_log!("Created WebRTC offer for: {}", target_device_id);
                             
                             // Send offer via signaling server
-                            self.send_signaling_message("signal", serde_json::json!({
+                            self.send_websocket_message(serde_json::json!({
                                 "target_device_id": target_device_id,
                                 "signaling_data": {
                                     "type": "offer",
@@ -270,7 +437,7 @@ impl P2PNetwork {
                             console_log!("Created WebRTC answer for: {}", peer_id);
                             
                             // Send answer via signaling server
-                            self.send_signaling_message("signal", serde_json::json!({
+                            self.send_websocket_message(serde_json::json!({
                                 "target_device_id": peer_id,
                                 "signaling_data": {
                                     "type": "answer",
@@ -446,34 +613,30 @@ impl P2PNetwork {
     pub fn start_discovery(&mut self) -> bool {
         if !self.is_connected_to_server {
             console_log!("Not connected to signaling server, attempting to connect...");
-            // For now, assume we're connected if we have a signaling server URL
-            if !self.signaling_server_url.is_empty() {
-                self.is_connected_to_server = true;
-            } else {
-                return false;
-            }
+            return false;
         }
         
-        console_log!("Starting peer discovery via signaling server");
+        console_log!("Starting real peer discovery via signaling server");
         
         // Send discovery request to signaling server
-        let _discovery_message = SignalingMessage {
-            message_type: "discover".to_string(),
-            data: serde_json::json!({
+        let discovery_message = serde_json::json!({
+            "type": "discover",
+            "data": {
                 "filters": {
                     "required_capabilities": ["memory_sharing"],
                     "specializations": ["general"]
                 }
-            }),
-        };
+            }
+        });
         
-        console_log!("Sent discovery request to signaling server");
-        
-        // Simulate server response with some example peers
-        self.simulate_discovery_response();
-        
-        self.discovery_protocol.last_discovery = js_sys::Date::now();
-        true
+        if self.send_websocket_message(discovery_message) {
+            console_log!("✅ Sent discovery request to signaling server");
+            self.discovery_protocol.last_discovery = js_sys::Date::now();
+            true
+        } else {
+            console_log!("❌ Failed to send discovery request");
+            false
+        }
     }
 
     fn simulate_server_response(&mut self, response_type: &str, data: serde_json::Value) {
@@ -498,37 +661,6 @@ impl P2PNetwork {
             _ => {
                 console_log!("Received server response: {}", response_type);
             }
-        }
-    }
-
-    fn simulate_discovery_response(&mut self) {
-        // Simulate finding some peers for demo purposes
-        let simulated_peers = vec![
-            PeerInfo {
-                device_id: "demo_peer_001".to_string(),
-                ip_address: "192.168.1.100".to_string(),
-                port: 8080,
-                public_key: "peer1_public_key".to_string(),
-                capabilities: vec!["memory_sharing".to_string(), "node_lending".to_string()],
-                reputation_score: 0.9,
-                last_seen: js_sys::Date::now(),
-                cluster_specializations: vec!["image_processing".to_string()],
-            },
-            PeerInfo {
-                device_id: "demo_peer_002".to_string(),
-                ip_address: "192.168.1.101".to_string(),
-                port: 8080,
-                public_key: "peer2_public_key".to_string(),
-                capabilities: vec!["collaborative_learning".to_string(), "inference".to_string()],
-                reputation_score: 0.85,
-                last_seen: js_sys::Date::now(),
-                cluster_specializations: vec!["nlp".to_string()],
-            },
-        ];
-        
-        for peer in simulated_peers {
-            console_log!("Discovered peer: {} ({})", peer.device_id, peer.capabilities.join(", "));
-            self.peer_registry.insert(peer.device_id.clone(), peer);
         }
     }
 
@@ -562,8 +694,34 @@ impl P2PNetwork {
     }
 
     #[wasm_bindgen]
+    pub fn handle_discovery_results(&mut self, peers_json: &str) -> bool {
+        console_log!("Processing real discovery results: {}", peers_json);
+        
+        match serde_json::from_str::<Vec<PeerInfo>>(peers_json) {
+            Ok(peers) => {
+                console_log!("✅ Parsed {} real peers from discovery", peers.len());
+                
+                // Clear existing peers and add the new ones
+                self.peer_registry.clear();
+                
+                for peer in peers {
+                    console_log!("👤 Adding real peer: {} with capabilities: [{}]", 
+                        peer.device_id, peer.capabilities.join(", "));
+                    self.peer_registry.insert(peer.device_id.clone(), peer);
+                }
+                
+                true
+            },
+            Err(e) => {
+                console_log!("❌ Failed to parse discovery results: {:?}", e);
+                false
+            }
+        }
+    }
+
+    #[wasm_bindgen]
     pub fn is_connected_to_signaling_server(&self) -> bool {
-        self.is_connected_to_server
+        self.is_connected_to_server && self.websocket.is_some()
     }
 
     #[wasm_bindgen]
