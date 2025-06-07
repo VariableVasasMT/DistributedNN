@@ -70,6 +70,17 @@
             color: #333;
         }
         
+        input[readonly] {
+            background: rgba(200, 200, 200, 0.7);
+            color: #555;
+            cursor: not-allowed;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        input[readonly]:focus {
+            outline: 2px solid #FFD93D;
+        }
+        
         button {
             background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
             color: white;
@@ -234,8 +245,8 @@
         <div class="control-panel">
             <div class="control-group">
                 <h3>🔧 Network Configuration</h3>
-                <label>Device ID:</label>
-                <input type="text" id="deviceId" value="browser_device_001" placeholder="Enter device ID">
+                <label>Device ID (auto-generated):</label>
+                <input type="text" id="deviceId" placeholder="Loading device ID..." readonly>
                 
                 <label>Cluster ID:</label>
                 <input type="text" id="clusterId" value="main_cluster" placeholder="Enter cluster ID">
@@ -394,6 +405,73 @@
         let activityHistory = [];
         let errorHistory = [];
         let blockchainHistory = [];
+        let currentDeviceId = null;
+        
+        // Generate or retrieve persistent device ID
+        function initializeDeviceId() {
+            const DEVICE_ID_KEY = 'dnn_device_id';
+            let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+            
+            if (!deviceId) {
+                // Generate random device ID with timestamp and random components
+                const timestamp = Date.now().toString(36);
+                const randomPart = Math.random().toString(36).substr(2, 8);
+                const deviceType = navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop';
+                deviceId = `${deviceType}_${timestamp}_${randomPart}`;
+                
+                localStorage.setItem(DEVICE_ID_KEY, deviceId);
+                addLog(`🆔 Generated new device ID: ${deviceId}`, 'info');
+            } else {
+                addLog(`🆔 Retrieved existing device ID: ${deviceId}`, 'info');
+            }
+            
+            currentDeviceId = deviceId;
+            const deviceIdInput = document.getElementById('deviceId');
+            deviceIdInput.value = deviceId;
+            deviceIdInput.readOnly = true;
+            deviceIdInput.title = 'Device ID is automatically generated and cannot be changed';
+            
+            return deviceId;
+        }
+        
+        // Monitor for device ID tampering attempts
+        function monitorDeviceIdChanges() {
+            const deviceIdInput = document.getElementById('deviceId');
+            
+            // Prevent any changes to the device ID
+            deviceIdInput.addEventListener('input', (e) => {
+                if (e.target.value !== currentDeviceId) {
+                    addLog('⚠️ Device ID cannot be changed! Resetting...', 'warning');
+                    e.target.value = currentDeviceId;
+                    
+                    // Reset network if it exists
+                    if (network) {
+                        addLog('🔄 Network reset due to device ID tampering attempt', 'warning');
+                        network = null;
+                        webrtcManager = null;
+                        setStatus('🔄 Network reset - create cluster again', 'loading');
+                        
+                        // Clear metrics
+                        updateMetrics({ num_nodes: 0, num_connections: 0, avg_specialization: 0, total_activations: 0 });
+                    }
+                }
+            });
+            
+            // Also prevent paste events
+            deviceIdInput.addEventListener('paste', (e) => {
+                e.preventDefault();
+                addLog('⚠️ Device ID cannot be changed!', 'warning');
+            });
+            
+            // And keydown events
+            deviceIdInput.addEventListener('keydown', (e) => {
+                // Allow only navigation keys, not editing
+                const allowedKeys = ['Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+                if (!allowedKeys.includes(e.key)) {
+                    e.preventDefault();
+                }
+            });
+        }
         
         // Status management
         function setStatus(message, type = 'loading') {
@@ -601,9 +679,14 @@
         
         // Event handlers
         document.getElementById('createCluster').addEventListener('click', () => {
-            const deviceId = document.getElementById('deviceId').value;
+            const deviceId = currentDeviceId; // Use the persistent device ID
             const clusterId = document.getElementById('clusterId').value;
             const nodeCount = parseInt(document.getElementById('nodeCount').value);
+            
+            if (!deviceId) {
+                addLog('❌ Device ID not initialized!', 'error');
+                return;
+            }
             
             if (!network) {
                 network = new DistributedNeuralNetwork(deviceId);
@@ -1017,10 +1100,15 @@
         // Initialize WASM module
         async function initializeDemo() {
             try {
+                // Initialize device ID first
+                initializeDeviceId();
+                monitorDeviceIdChanges();
+                
                 await init();
                 setStatus('🟢 WASM module loaded successfully', 'ready');
                 addLog('Distributed Neural Network with Blockchain WASM module initialized');
                 addLog('Ready to create networks and process data');
+                addLog(`🔒 Device ID locked: ${currentDeviceId}`, 'info');
                 
                 // Enable controls
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
