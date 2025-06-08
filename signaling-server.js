@@ -258,12 +258,40 @@ function handleHeartbeat(ws, data) {
         peer.info.last_seen = Date.now();
         peer.status = 'online';
         
+        // Update node status if provided
+        if (data.node_status) {
+            peer.info.node_status = {
+                ...peer.info.node_status,
+                ...data.node_status,
+                last_activity: Date.now()
+            };
+            console.log(`💓 Updated node status for ${device_id}: processing=${data.node_status.is_processing}, load=${(data.node_status.processing_load * 100).toFixed(1)}%`);
+        }
+        
+        // Update available resources if provided
+        if (data.available_resources) {
+            peer.info.cpu_usage = data.available_resources.cpu_usage || peer.info.cpu_usage;
+            peer.info.memory_usage = data.available_resources.memory_usage || peer.info.memory_usage;
+            peer.info.available_nodes = data.available_resources.available_nodes || peer.info.available_nodes;
+        }
+        
+        // Update capabilities if provided
+        if (data.capabilities) {
+            peer.info.capabilities = data.capabilities;
+        }
+        
+        // Update specializations if provided
+        if (data.cluster_specializations) {
+            peer.info.cluster_specializations = data.cluster_specializations;
+        }
+        
         // Send heartbeat response
         ws.send(JSON.stringify({
             type: 'heartbeat_ack',
             data: {
                 server_time: Date.now(),
-                peer_count: peerRegistry.size
+                peer_count: peerRegistry.size,
+                status_updated: !!data.node_status
             }
         }));
     }
