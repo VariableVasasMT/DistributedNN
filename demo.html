@@ -877,6 +877,7 @@
                             // Auto-start peer discovery after a short delay
                             setTimeout(() => {
                                 if (network.is_connected_to_signaling_server()) {
+                                    addLog('🔗 Signaling server connection confirmed, starting discovery...', 'p2p');
                                     const discoverySuccess = network.start_peer_discovery();
                                     if (discoverySuccess) {
                                         addLog('🔍 Auto-started peer discovery after network creation', 'p2p');
@@ -885,9 +886,24 @@
                                         addLog('⚠️ Auto-discovery failed, use manual discovery button', 'warning');
                                     }
                                 } else {
-                                    addLog('⚠️ Not connected to signaling server yet, use manual discovery', 'warning');
+                                    addLog('⚠️ Not connected to signaling server yet, retrying...', 'warning');
+                                    // Retry after another 2 seconds
+                                    setTimeout(() => {
+                                        if (network.is_connected_to_signaling_server()) {
+                                            addLog('🔗 Signaling server connection confirmed on retry, starting discovery...', 'p2p');
+                                            const discoverySuccess = network.start_peer_discovery();
+                                            if (discoverySuccess) {
+                                                addLog('🔍 Auto-started peer discovery after retry', 'p2p');
+                                                setupDiscoveryPolling();
+                                            } else {
+                                                addLog('⚠️ Auto-discovery failed on retry', 'warning');
+                                            }
+                                        } else {
+                                            addLog('❌ Still not connected to signaling server, use manual discovery', 'error');
+                                        }
+                                    }, 2000);
                                 }
-                            }, 2000); // Wait 2 seconds for WebSocket connection
+                            }, 4000); // Increased delay to 4 seconds for WebSocket connection
                         } else {
                             addLog('❌ Failed to configure signaling server', 'error');
                         }
@@ -1062,29 +1078,45 @@
                     // Configure signaling server before starting discovery if not already configured
                     const signalingUrl = document.getElementById('signalingServerUrl').value.trim() || currentSignalingServer;
                     if (signalingUrl) {
-                        const configSuccess = network.configure_signaling_server(signalingUrl);
-                        if (configSuccess) {
-                            addLog(`🌐 Connected to signaling server: ${signalingUrl}`, 'p2p');
-                            
-                            // Wait for connection to establish, then start discovery
-                            setTimeout(() => {
-                                if (network.is_connected_to_signaling_server()) {
-                                    const success = network.start_peer_discovery();
-                                    if (success) {
-                                        addLog('🔍 Started real peer discovery protocol', 'p2p');
-                                        setStatus('🌐 Discovering real peers', 'connecting');
-                                        
-                                        // Set up discovery result polling
-                                        setupDiscoveryPolling();
+                        addLog('🔄 Manual discovery requested...', 'p2p');
+                        
+                        if (!network.is_connected_to_signaling_server()) {
+                            addLog('⚠️ Not connected to signaling server, connecting first...', 'warning');
+                            const configSuccess = network.configure_signaling_server(signalingUrl);
+                            if (configSuccess) {
+                                addLog(`🌐 Connected to signaling server: ${signalingUrl}`, 'p2p');
+                                
+                                // Wait for connection to establish, then start discovery
+                                setTimeout(() => {
+                                    if (network.is_connected_to_signaling_server()) {
+                                        addLog('🔗 Signaling server connection confirmed, starting discovery...', 'p2p');
+                                        const discoverySuccess = network.start_peer_discovery();
+                                        if (discoverySuccess) {
+                                            addLog('🔍 Started real peer discovery protocol', 'p2p');
+                                            setStatus('🌐 Discovering real peers', 'connecting');
+                                            
+                                            // Set up discovery result polling
+                                            setupDiscoveryPolling();
+                                        } else {
+                                            addLog('❌ Failed to start peer discovery', 'error');
+                                        }
                                     } else {
-                                        addLog('❌ Failed to start peer discovery', 'error');
+                                        addLog('❌ Still not connected to signaling server after manual connection', 'error');
                                     }
-                                } else {
-                                    addLog('❌ Not connected to signaling server', 'error');
-                                }
-                            }, 1000); // Wait 1 second for WebSocket connection
+                                }, 2000); // Wait 2 seconds for WebSocket connection
+                            } else {
+                                addLog('❌ Failed to connect to signaling server', 'error');
+                            }
                         } else {
-                            addLog('❌ Failed to connect to signaling server', 'error');
+                            addLog('✅ Already connected to signaling server, starting discovery...', 'p2p');
+                            const discoverySuccess = network.start_peer_discovery();
+                            if (discoverySuccess) {
+                                addLog('🔍 Started real peer discovery protocol', 'p2p');
+                                setStatus('🌐 Discovering real peers', 'connecting');
+                                setupDiscoveryPolling();
+                            } else {
+                                addLog('❌ Failed to start peer discovery', 'error');
+                            }
                         }
                     } else {
                         addLog('❌ No signaling server configured', 'error');
