@@ -10,6 +10,7 @@ use js_sys::{Object, Reflect, Array};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use crate::console_log;
+use wasm_bindgen::closure::Closure;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WebRTCOffer {
@@ -35,8 +36,8 @@ pub struct ICECandidate {
 pub struct WebRTCManager {
     device_id: String,
     ice_servers: Vec<String>,
-    // Note: We'll manage connections differently to handle clone
     connected_peers: Vec<String>,
+    data_channels: HashMap<String, RtcDataChannel>, // peer_id -> data_channel
 }
 
 #[wasm_bindgen]
@@ -52,6 +53,7 @@ impl WebRTCManager {
                 "stun:stun1.l.google.com:19302".to_string(),
             ],
             connected_peers: Vec::new(),
+            data_channels: HashMap::new(),
         }
     }
 
@@ -151,19 +153,24 @@ impl WebRTCManager {
     pub fn create_data_channel(&mut self, peer_id: &str, channel_name: &str) -> Result<(), JsValue> {
         console_log!("Creating data channel '{}' for peer: {}", channel_name, peer_id);
         
-        // For simplified implementation, we'll create a mock peer connection here
-        // In a real implementation, you'd retrieve the actual peer connection
+        // Create a new peer connection for this operation
         let config = RtcConfiguration::new();
         let pc = RtcPeerConnection::new_with_configuration(&config)?;
         
+        // Create data channel options
         let mut options = RtcDataChannelInit::new();
         options.set_ordered(true);
         
-        let data_channel = pc.create_data_channel_with_data_channel_dict(channel_name, &options);
+        // Create the data channel
+        let channel = pc.create_data_channel_with_data_channel_dict(channel_name, &options);
         
-        // Set up data channel event handlers
-        self.setup_data_channel_handlers(&data_channel, peer_id)?;
+        // Store the data channel
+        self.data_channels.insert(peer_id.to_string(), channel.clone());
         
+        // Set up event handlers
+        self.setup_data_channel_handlers(&channel, peer_id)?;
+        
+        console_log!("Data channel '{}' created for peer: {}", channel_name, peer_id);
         Ok(())
     }
 
@@ -172,7 +179,7 @@ impl WebRTCManager {
         
         // Handle data channel open
         let onopen_callback = Closure::wrap(Box::new(move |_event: Event| {
-            console_log!("Data channel opened for peer: {}", peer_id_clone);
+            console_log!("✅ Data channel opened for peer: {}", peer_id_clone);
         }) as Box<dyn FnMut(Event)>);
         
         channel.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
@@ -183,7 +190,7 @@ impl WebRTCManager {
         let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
             if let Ok(message) = event.data().dyn_into::<js_sys::JsString>() {
                 let message_str = String::from(message);
-                console_log!("Received P2P message from {}: {}", peer_id_clone2, message_str);
+                console_log!("📨 Received P2P message from {}: {}", peer_id_clone2, message_str);
                 // Message will be handled by P2PNetwork layer
             }
         }) as Box<dyn FnMut(MessageEvent)>);
@@ -194,11 +201,20 @@ impl WebRTCManager {
         // Handle errors
         let peer_id_clone3 = peer_id.to_string();
         let onerror_callback = Closure::wrap(Box::new(move |event: Event| {
-            console_log!("Data channel error for peer {}: {:?}", peer_id_clone3, event);
+            console_log!("❌ Data channel error for peer {}: {:?}", peer_id_clone3, event);
         }) as Box<dyn FnMut(Event)>);
         
         channel.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
         onerror_callback.forget();
+        
+        // Handle close
+        let peer_id_clone4 = peer_id.to_string();
+        let onclose_callback = Closure::wrap(Box::new(move |_event: Event| {
+            console_log!("🔒 Data channel closed for peer: {}", peer_id_clone4);
+        }) as Box<dyn FnMut(Event)>);
+        
+        channel.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
+        onclose_callback.forget();
         
         Ok(())
     }
@@ -324,27 +340,55 @@ impl WebRTCManager {
 
     #[wasm_bindgen]
     pub fn send_data(&self, peer_id: &str, data: &str) -> Result<(), JsValue> {
-        console_log!("Sending data to peer {} via WebRTC (simulated): {}", peer_id, data);
+        console_log!("📤 Sending data to peer {} via WebRTC: {}", peer_id, data);
         
-        // In a real implementation, this would use the actual data channel
-        // For now, we'll simulate successful sending if peer is connected
-        if self.connected_peers.contains(&peer_id.to_string()) {
-            Ok(())
+        // Check if we have a data channel for this peer
+        if let Some(channel) = self.data_channels.get(peer_id) {
+            // Check if the channel is ready
+            if channel.ready_state() == web_sys::RtcDataChannelState::Open {
+                match channel.send_with_str(data) {
+                    Ok(_) => {
+                        console_log!("✅ Successfully sent message via WebRTC to {}: {}", peer_id, data);
+                        Ok(())
+                    },
+                    Err(e) => {
+                        console_log!("❌ Failed to send data via WebRTC to {}: {:?}", peer_id, e);
+                        Err(e)
+                    }
+                }
+            } else {
+                let error_msg = format!("Data channel not ready for peer {}, state: {:?}", peer_id, channel.ready_state());
+                console_log!("⚠️ {}", error_msg);
+                Err(JsValue::from_str(&error_msg))
+            }
         } else {
-            Err(JsValue::from_str("Peer not connected"))
+            let error_msg = format!("No data channel found for peer: {}", peer_id);
+            console_log!("❌ {}", error_msg);
+            Err(JsValue::from_str(&error_msg))
         }
     }
 
     #[wasm_bindgen]
     pub fn is_connected(&self, peer_id: &str) -> bool {
-        self.connected_peers.contains(&peer_id.to_string())
+        // Check if we have a data channel and it's open
+        if let Some(channel) = self.data_channels.get(peer_id) {
+            channel.ready_state() == web_sys::RtcDataChannelState::Open
+        } else {
+            // Fallback: check connected_peers list
+            self.connected_peers.contains(&peer_id.to_string())
+        }
     }
 
     #[wasm_bindgen]
     pub fn get_connection_stats(&self) -> String {
+        let open_channels = self.data_channels.values()
+            .filter(|channel| channel.ready_state() == web_sys::RtcDataChannelState::Open)
+            .count();
+        
         let stats = serde_json::json!({
             "total_connections": self.connected_peers.len(),
-            "active_channels": self.connected_peers.len(),
+            "active_channels": open_channels,
+            "data_channels": self.data_channels.len(),
             "connected_peers": self.connected_peers.len()
         });
         
@@ -353,12 +397,18 @@ impl WebRTCManager {
 
     #[wasm_bindgen]
     pub fn close_connection(&mut self, peer_id: &str) -> Result<(), JsValue> {
-        console_log!("Closing connection to peer: {}", peer_id);
+        console_log!("🔒 Closing connection to peer: {}", peer_id);
+        
+        // Close and remove the data channel
+        if let Some(channel) = self.data_channels.remove(peer_id) {
+            channel.close();
+            console_log!("📤 Closed data channel for peer: {}", peer_id);
+        }
         
         // Remove from connected peers
         self.connected_peers.retain(|id| id != peer_id);
         
-        console_log!("Connection closed for peer: {}", peer_id);
+        console_log!("✅ Connection closed for peer: {}", peer_id);
         Ok(())
     }
 }
