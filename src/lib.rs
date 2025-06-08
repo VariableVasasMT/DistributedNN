@@ -225,6 +225,31 @@ impl DistributedNeuralNetwork {
     }
 
     #[wasm_bindgen]
+    pub fn is_connected_to_signaling_server(&self) -> bool {
+        self.p2p_network.is_connected_to_signaling_server()
+    }
+
+    #[wasm_bindgen]
+    pub fn handle_discovery_results(&mut self, peers_json: &str) -> bool {
+        self.p2p_network.handle_discovery_results(peers_json)
+    }
+
+    #[wasm_bindgen]
+    pub fn find_free_nodes(&self) -> String {
+        self.p2p_network.find_free_nodes()
+    }
+
+    #[wasm_bindgen]
+    pub async fn auto_connect_to_free_node(&mut self) -> String {
+        self.p2p_network.auto_connect_to_free_node().await
+    }
+
+    #[wasm_bindgen]
+    pub fn get_node_availability_stats(&self) -> String {
+        self.p2p_network.get_node_availability_stats()
+    }
+
+    #[wasm_bindgen]
     pub fn step_simulation(&mut self, delta_time: f64) {
         for cluster in self.clusters.values_mut() {
             cluster.step(delta_time);
