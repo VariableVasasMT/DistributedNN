@@ -876,6 +876,9 @@
                             
                             // Auto-start peer discovery after a short delay
                             setTimeout(() => {
+                                addLog('🔄 Auto-discovery timeout triggered, checking connection...', 'p2p');
+                                addLog(`📊 Connection state: ${network.is_connected_to_signaling_server()}`, 'p2p');
+                                
                                 if (network.is_connected_to_signaling_server()) {
                                     addLog('🔗 Signaling server connection confirmed, starting discovery...', 'p2p');
                                     const discoverySuccess = network.start_peer_discovery();
@@ -889,6 +892,9 @@
                                     addLog('⚠️ Not connected to signaling server yet, retrying...', 'warning');
                                     // Retry after another 2 seconds
                                     setTimeout(() => {
+                                        addLog('🔄 Auto-discovery retry triggered, checking connection...', 'p2p');
+                                        addLog(`📊 Connection state on retry: ${network.is_connected_to_signaling_server()}`, 'p2p');
+                                        
                                         if (network.is_connected_to_signaling_server()) {
                                             addLog('🔗 Signaling server connection confirmed on retry, starting discovery...', 'p2p');
                                             const discoverySuccess = network.start_peer_discovery();
@@ -1125,6 +1131,23 @@
                 } else {
                     addLog('❌ Create a network first!', 'error');
                 }
+                
+                // Also add immediate test of discovery regardless of auto-discovery
+                addLog('🧪 Testing discovery capability immediately...', 'p2p');
+                setTimeout(() => {
+                    if (network && network.is_connected_to_signaling_server()) {
+                        addLog('🧪 Manual discovery test - connection confirmed', 'p2p');
+                        const testDiscovery = network.start_peer_discovery();
+                        if (testDiscovery) {
+                            addLog('🧪 Manual discovery test - request sent successfully', 'p2p');
+                            setupDiscoveryPolling();
+                        } else {
+                            addLog('🧪 Manual discovery test - request failed', 'error');
+                        }
+                    } else {
+                        addLog('🧪 Manual discovery test - not connected to signaling server', 'warning');
+                    }
+                }, 1000);
             });
 
             // Set up polling for discovery results
