@@ -250,6 +250,11 @@ impl DistributedNeuralNetwork {
     }
 
     #[wasm_bindgen]
+    pub fn send_heartbeat(&mut self) -> bool {
+        self.p2p_network.send_heartbeat()
+    }
+
+    #[wasm_bindgen]
     pub fn step_simulation(&mut self, delta_time: f64) {
         for cluster in self.clusters.values_mut() {
             cluster.step(delta_time);
