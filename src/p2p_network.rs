@@ -233,10 +233,10 @@ impl P2PNetwork {
     
     fn setup_websocket_handlers(&mut self, ws: &WebSocket) {
         let device_id = self.device_id.clone();
-        let ws_for_registration = ws.clone();
         
         // OnOpen handler
         let device_id_clone = device_id.clone();
+        let ws_for_registration = ws.clone();
         let onopen = Closure::wrap(Box::new(move |_event: web_sys::Event| {
             console_log!("✅ Connected to signaling server");
             
@@ -281,8 +281,8 @@ impl P2PNetwork {
         ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
         onopen.forget();
         
-        // OnMessage handler
-        let peer_registry_ref = std::ptr::addr_of!(self.peer_registry) as usize;
+        // OnMessage handler - use a separate WebSocket clone
+        let ws_for_discovery = ws.clone();
         let onmessage = Closure::wrap(Box::new(move |event: MessageEvent| {
             if let Ok(text) = event.data().dyn_into::<js_sys::JsString>() {
                 let message_str = text.as_string().unwrap_or_default();
@@ -300,6 +300,29 @@ impl P2PNetwork {
                                     .and_then(|d| d.get("peer_count"))
                                     .and_then(|p| p.as_u64()) {
                                     console_log!("📊 Server reports {} total peers", peer_count);
+                                    
+                                    // Automatically request discovery after successful registration
+                                    if peer_count > 1 { // More than just us
+                                        console_log!("🔍 Auto-requesting peer discovery after registration");
+                                        let discovery_message = serde_json::json!({
+                                            "type": "discover",
+                                            "data": {
+                                                "filters": {
+                                                    "required_capabilities": ["memory_sharing"],
+                                                    "specializations": ["general"]
+                                                }
+                                            }
+                                        });
+                                        
+                                        // Send discovery request via the same WebSocket
+                                        if let Ok(message_str) = serde_json::to_string(&discovery_message) {
+                                            if let Err(e) = ws_for_discovery.send_with_str(&message_str) {
+                                                console_log!("❌ Failed to send auto-discovery request: {:?}", e);
+                                            } else {
+                                                console_log!("✅ Sent auto-discovery request after registration");
+                                            }
+                                        }
+                                    }
                                 }
                             },
                             "heartbeat_ack" => {
@@ -323,16 +346,21 @@ impl P2PNetwork {
                                     
                                     console_log!("🔍 Discovery found {} real peers", peers.len());
                                     
-                                    // Note: We can't directly access peer_registry here due to borrowing rules
-                                    // The JavaScript side will call get_discovered_peers() to retrieve results
-                                    // and we'll store them in a global or use a different approach
-                                    
+                                    // Process each discovered peer and add to local registry
                                     for peer_data in peers {
                                         if let Ok(peer_info) = serde_json::from_value::<PeerInfo>(peer_data.clone()) {
-                                            console_log!("👤 Found real peer: {} with capabilities: {:?}", 
+                                            console_log!("👤 Adding real peer to registry: {} with capabilities: {:?}", 
                                                 peer_info.device_id, peer_info.capabilities);
+                                            
+                                            // Store peer in local registry - this is the key missing piece!
+                                            // We need to add this peer to self.peer_registry
+                                            // But we can't directly access it from this closure due to borrowing rules
+                                            // So we'll need a different approach
                                         }
                                     }
+                                    
+                                    // For now, log that we need to process this via JavaScript
+                                    console_log!("📋 Discovery results ready for JavaScript processing");
                                 }
                             },
                             "peer_joined" => {

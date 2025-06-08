@@ -1184,6 +1184,14 @@
                         const processSuccess = network.handle_discovery_results(JSON.stringify(peers));
                         if (processSuccess) {
                             addLog(`✅ Processed ${peers.length} peer records into local registry`, 'p2p');
+                            
+                            // Force an immediate check for free nodes
+                            setTimeout(() => {
+                                updateNodeAvailabilityStats();
+                                const freeNodesJson = network.find_free_nodes();
+                                const freeNodes = JSON.parse(freeNodesJson);
+                                addLog(`🔍 Immediate free node check: ${freeNodes.length} free nodes found`, 'p2p');
+                            }, 500);
                         } else {
                             addLog(`⚠️ Failed to process peer discovery results`, 'warning');
                         }
@@ -1222,6 +1230,12 @@
                         addLog(`⏰ Discovery timeout after ${maxPolls/2} seconds. No real peers found.`, 'warning');
                         addLog('💡 Try: 1) Open another browser tab/window, 2) Check signaling server URL', 'info');
                         setStatus('🟡 No peers found', 'ready');
+                    } else {
+                        // Keep polling, but also try to trigger discovery again if we haven't seen any results
+                        if (pollCount === 5 && peers.length === 0) {
+                            addLog('🔄 No results yet, re-triggering discovery...', 'p2p');
+                            network.start_peer_discovery();
+                        }
                     }
                 }, 500); // Poll every 500ms
             }
