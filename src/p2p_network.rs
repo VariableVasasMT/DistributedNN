@@ -353,21 +353,24 @@ impl P2PNetwork {
                                     if let Some(peers) = data.get("peers").and_then(|p| p.as_array()) {
                                         console_log!("🔍 Discovery found {} real peers", peers.len());
                                         
-                                        // Process each discovered peer and add to local registry  
-                                        for peer_data in peers {
-                                            if let Ok(peer_info) = serde_json::from_value::<PeerInfo>(peer_data.clone()) {
-                                                console_log!("👤 Adding real peer to registry: {} with capabilities: {:?}", 
-                                                    peer_info.device_id, peer_info.capabilities);
-                                                
-                                                // Store peer in local registry - this is the key missing piece!
-                                                // We need to add this peer to self.peer_registry
-                                                // But we can't directly access it from this closure due to borrowing rules
-                                                // So we'll need a different approach
-                                            }
+                                        // Convert peers array to JSON string and call JavaScript processor
+                                        if let Ok(peers_json) = serde_json::to_string(peers) {
+                                            console_log!("📞 Calling JavaScript to process discovery results");
+                                            
+                                            // Call JavaScript function to handle discovery results
+                                            let js_code = format!("window.processDiscoveryResults && window.processDiscoveryResults({})", peers_json);
+                                            let _ = js_sys::eval(&js_code);
+                                        } else {
+                                            console_log!("❌ Failed to serialize peers to JSON");
                                         }
                                         
-                                        // For now, log that we need to process this via JavaScript
-                                        console_log!("📋 Discovery results ready for JavaScript processing");
+                                        // For debugging: Process each discovered peer and log details
+                                        for peer_data in peers {
+                                            if let Ok(peer_info) = serde_json::from_value::<PeerInfo>(peer_data.clone()) {
+                                                console_log!("👤 Discovery found peer: {} with capabilities: {:?}", 
+                                                    peer_info.device_id, peer_info.capabilities);
+                                            }
+                                        }
                                     }
                                 }
                             },

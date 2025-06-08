@@ -426,6 +426,44 @@
             let currentDeviceId = null;
             let currentSignalingServer = null;
             
+            // Global storage for discovery results from WebSocket
+            let pendingDiscoveryResults = [];
+            
+            // Function to process discovery results from WebSocket callback
+            function processDiscoveryResults(peers) {
+                if (!network) {
+                    // Store for later processing when network is ready
+                    pendingDiscoveryResults = peers;
+                    addLog(`📋 Stored ${peers.length} discovery results for later processing`, 'p2p');
+                    return;
+                }
+                
+                addLog(`🔄 Processing ${peers.length} discovery results from WebSocket`, 'p2p');
+                
+                // Call the WASM function to add peers to Rust registry
+                const success = network.handle_discovery_results(JSON.stringify(peers));
+                if (success) {
+                    addLog(`✅ Successfully added ${peers.length} peers to local registry`, 'p2p');
+                    
+                    // Immediate check for free nodes
+                    setTimeout(() => {
+                        updateNodeAvailabilityStats();
+                        const freeNodesJson = network.find_free_nodes();
+                        const freeNodes = JSON.parse(freeNodesJson);
+                        addLog(`🎯 Immediate free node check: ${freeNodes.length} free nodes found`, 'p2p');
+                        
+                        if (freeNodes.length > 0) {
+                            addLog('💡 Ready for auto-connection! Use "Auto-Connect to Free Node" button', 'info');
+                        }
+                    }, 100);
+                } else {
+                    addLog(`❌ Failed to add peers to local registry`, 'error');
+                }
+            }
+            
+            // Expose globally for WebSocket callback
+            window.processDiscoveryResults = processDiscoveryResults;
+            
             // Generate or retrieve persistent device ID
             function initializeDeviceId() {
                 const DEVICE_ID_KEY = 'dnn_device_id';
@@ -864,6 +902,13 @@
                     addLog(`Created network for device: ${deviceId}`, 'blockchain');
                     addLog(`Initialized WebRTC manager for device: ${deviceId}`, 'p2p');
                     
+                    // Process any pending discovery results
+                    if (pendingDiscoveryResults.length > 0) {
+                        addLog(`🔄 Processing ${pendingDiscoveryResults.length} pending discovery results`, 'p2p');
+                        processDiscoveryResults(pendingDiscoveryResults);
+                        pendingDiscoveryResults = [];
+                    }
+                    
                     // Start heartbeat timer for regular status updates
                     startHeartbeatTimer();
                     
@@ -1190,8 +1235,8 @@
                                 updateNodeAvailabilityStats();
                                 const freeNodesJson = network.find_free_nodes();
                                 const freeNodes = JSON.parse(freeNodesJson);
-                                addLog(`🔍 Immediate free node check: ${freeNodes.length} free nodes found`, 'p2p');
-                            }, 500);
+                                addLog(`🎯 Immediate free node check: ${freeNodes.length} free nodes found`, 'p2p');
+                            }, 100);
                         } else {
                             addLog(`⚠️ Failed to process peer discovery results`, 'warning');
                         }
