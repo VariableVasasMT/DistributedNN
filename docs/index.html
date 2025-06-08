@@ -1154,7 +1154,7 @@
                                     } else {
                                         addLog('❌ Still not connected to signaling server after manual connection', 'error');
                                     }
-                                }, 2000); // Wait 2 seconds for WebSocket connection
+                                }, 2000);
                             } else {
                                 addLog('❌ Failed to connect to signaling server', 'error');
                             }
@@ -1451,13 +1451,23 @@
                 
                 if (network && message && peerId && peerId !== 'None') {
                     try {
-                        network.send_direct_message(message);
-                        addLog(`📤 Sent direct P2P message to ${peerId}: ${message}`, 'p2p');
+                        const success = network.send_direct_message(peerId, message);
+                        if (success) {
+                            addLog(`📤 Sent direct P2P message to ${peerId}: ${message}`, 'p2p');
+                        } else {
+                            addLog(`❌ Failed to send direct P2P message to ${peerId}`, 'error');
+                        }
                     } catch (error) {
                         addLog(`❌ Failed to send direct message: ${error}`, 'error');
                     }
                 } else {
                     addLog('❌ No active peer connection or missing message', 'error');
+                    if (!peerId || peerId === 'None') {
+                        addLog('💡 Use "Auto-Connect to Free Node" first to establish a WebRTC connection', 'info');
+                    }
+                    if (!message) {
+                        addLog('💡 Enter a message in the text field first', 'info');
+                    }
                 }
             });
 
@@ -1589,8 +1599,12 @@
                         // Try sending a test message
                         setTimeout(() => {
                             try {
-                                network.send_direct_message("Hello from auto-connected peer!");
-                                addLog(`📤 Sent test message to auto-connected peer: ${connectedPeerId}`, 'p2p');
+                                const success = network.send_direct_message(connectedPeerId, "Hello from auto-connected peer!");
+                                if (success) {
+                                    addLog(`📤 Sent test message to auto-connected peer: ${connectedPeerId}`, 'p2p');
+                                } else {
+                                    addLog(`⚠️ Could not send test message to: ${connectedPeerId}`, 'warning');
+                                }
                             } catch (e) {
                                 addLog(`⚠️ Could not send test message: ${e.message}`, 'warning');
                             }

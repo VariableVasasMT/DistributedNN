@@ -1232,6 +1232,50 @@ impl P2PNetwork {
         
         serde_json::to_string(&stats).unwrap_or_default()
     }
+    
+    #[wasm_bindgen]
+    pub fn send_direct_user_message(&mut self, peer_id: String, message: String) -> bool {
+        console_log!("Sending direct user message to {}: {}", peer_id, message);
+        
+        // Check if we have a WebRTC connection to this peer first
+        if let Some(ref webrtc_manager) = self.webrtc_manager {
+            if webrtc_manager.is_connected(&peer_id) {
+                // Send directly via WebRTC data channel
+                match webrtc_manager.send_data(&peer_id, &message) {
+                    Ok(_) => {
+                        console_log!("📤 Successfully sent direct user message to {}: {}", peer_id, message);
+                        return true;
+                    },
+                    Err(e) => {
+                        console_log!("❌ Failed to send WebRTC message to {}: {:?}", peer_id, e);
+                    }
+                }
+            } else {
+                console_log!("❌ No WebRTC connection to peer: {}", peer_id);
+            }
+        } else {
+            console_log!("❌ WebRTC manager not available");
+        }
+        
+        // Fallback: try to send via P2P message system
+        console_log!("🔄 Attempting fallback via P2P message system");
+        let p2p_message = P2PMessage {
+            message_id: crate::utils::generate_unique_id("user_msg"),
+            from: self.device_id.clone(),
+            to: peer_id.clone(),
+            message_type: MessageType::HeartBeat, // Using HeartBeat as a simple message carrier
+            payload: MessagePayload::HeartBeatData {
+                device_status: "user_message".to_string(),
+                available_resources: std::collections::HashMap::new(),
+                recent_activities: vec![message],
+            },
+            timestamp: js_sys::Date::now(),
+            signature: "user_message_signature".to_string(),
+            hop_count: 0,
+        };
+        
+        self.send_direct_message(peer_id, p2p_message)
+    }
 }
 
 #[derive(serde::Serialize)]

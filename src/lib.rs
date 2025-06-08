@@ -360,12 +360,11 @@ impl DistributedNeuralNetwork {
     }
 
     #[wasm_bindgen]
-    pub fn send_direct_message(&self, message: String) -> bool {
-        console_log!("Sending direct P2P message: {}", message);
-        // For now, we'll use a simple approach - in a real implementation
-        // this would be sent to a specific peer via WebRTC
-        console_log!("📤 Direct P2P message sent: {}", message);
-        true
+    pub fn send_direct_message(&mut self, peer_id: String, message: String) -> bool {
+        console_log!("Sending direct P2P message to {}: {}", peer_id, message);
+        
+        // Use the P2P network's public method to send the message
+        self.p2p_network.send_direct_user_message(peer_id, message)
     }
 
     #[wasm_bindgen]
