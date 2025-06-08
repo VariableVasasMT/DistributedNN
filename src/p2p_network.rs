@@ -302,6 +302,19 @@ impl P2PNetwork {
                                     console_log!("📊 Server reports {} total peers", peer_count);
                                 }
                             },
+                            "heartbeat_ack" => {
+                                console_log!("💓 Heartbeat acknowledged by signaling server");
+                                if let Some(data) = message.get("data") {
+                                    if let Some(peer_count) = data.get("peer_count").and_then(|p| p.as_u64()) {
+                                        console_log!("📊 Server reports {} total peers online", peer_count);
+                                    }
+                                    if let Some(status_updated) = data.get("status_updated").and_then(|s| s.as_bool()) {
+                                        if status_updated {
+                                            console_log!("✅ Node status successfully updated on server");
+                                        }
+                                    }
+                                }
+                            },
                             "discovery_result" => {
                                 console_log!("🔍 Received real peer discovery results");
                                 if let Some(peers) = message.get("data")
@@ -637,11 +650,11 @@ impl P2PNetwork {
     #[wasm_bindgen]
     pub fn start_discovery(&mut self) -> bool {
         if !self.is_connected_to_server {
-            console_log!("Not connected to signaling server, attempting to connect...");
+            console_log!("❌ Cannot start discovery - not connected to signaling server");
             return false;
         }
         
-        console_log!("Starting real peer discovery via signaling server");
+        console_log!("🔍 Starting real peer discovery via signaling server");
         
         // Send discovery request to signaling server
         let discovery_message = serde_json::json!({
