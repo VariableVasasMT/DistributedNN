@@ -132,6 +132,63 @@ function handlePeerRegistration(ws, data) {
             total_peers: peerRegistry.size
         }
     });
+    
+    // If there are existing peers, automatically trigger discovery for everyone
+    if (peerRegistry.size > 1) {
+        console.log(`🔄 Auto-triggering discovery for all ${peerRegistry.size} peers after new registration`);
+        
+        // Send discovery results to the new peer (about existing peers)
+        const existingPeers = [];
+        for (const [peerId, peerData] of peerRegistry) {
+            if (peerId !== device_id && peerData.status === 'online') {
+                existingPeers.push({
+                    device_id: peerId,
+                    ...peerData.info,
+                    ws: undefined
+                });
+            }
+        }
+        
+        if (existingPeers.length > 0) {
+            ws.send(JSON.stringify({
+                type: 'discovery_result',
+                data: {
+                    peers: existingPeers,
+                    total_found: existingPeers.length,
+                    timestamp: Date.now(),
+                    auto_triggered: true
+                }
+            }));
+            console.log(`📡 Sent auto-discovery results to new peer ${device_id}: ${existingPeers.length} existing peers`);
+        }
+        
+        // Send discovery results to existing peers (about the new peer)
+        const newPeerInfo = [{
+            device_id,
+            ...registrationInfo.info,
+            ws: undefined
+        }];
+        
+        for (const [peerId, peerData] of peerRegistry) {
+            if (peerId !== device_id && peerData.status === 'online') {
+                try {
+                    peerData.ws.send(JSON.stringify({
+                        type: 'discovery_result',
+                        data: {
+                            peers: newPeerInfo,
+                            total_found: 1,
+                            timestamp: Date.now(),
+                            auto_triggered: true,
+                            reason: 'new_peer_joined'
+                        }
+                    }));
+                    console.log(`📡 Sent new peer notification to existing peer ${peerId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to send discovery update to ${peerId}:`, error);
+                }
+            }
+        }
+    }
 }
 
 function handlePeerDiscovery(ws, data) {

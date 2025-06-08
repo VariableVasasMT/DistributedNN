@@ -340,27 +340,35 @@ impl P2PNetwork {
                             },
                             "discovery_result" => {
                                 console_log!("🔍 Received real peer discovery results");
-                                if let Some(peers) = message.get("data")
-                                    .and_then(|d| d.get("peers"))
-                                    .and_then(|p| p.as_array()) {
-                                    
-                                    console_log!("🔍 Discovery found {} real peers", peers.len());
-                                    
-                                    // Process each discovered peer and add to local registry
-                                    for peer_data in peers {
-                                        if let Ok(peer_info) = serde_json::from_value::<PeerInfo>(peer_data.clone()) {
-                                            console_log!("👤 Adding real peer to registry: {} with capabilities: {:?}", 
-                                                peer_info.device_id, peer_info.capabilities);
-                                            
-                                            // Store peer in local registry - this is the key missing piece!
-                                            // We need to add this peer to self.peer_registry
-                                            // But we can't directly access it from this closure due to borrowing rules
-                                            // So we'll need a different approach
+                                if let Some(data) = message.get("data") {
+                                    if let Some(auto_triggered) = data.get("auto_triggered").and_then(|a| a.as_bool()) {
+                                        if auto_triggered {
+                                            console_log!("🤖 Auto-triggered discovery from server");
+                                            if let Some(reason) = data.get("reason").and_then(|r| r.as_str()) {
+                                                console_log!("📋 Reason: {}", reason);
+                                            }
                                         }
                                     }
                                     
-                                    // For now, log that we need to process this via JavaScript
-                                    console_log!("📋 Discovery results ready for JavaScript processing");
+                                    if let Some(peers) = data.get("peers").and_then(|p| p.as_array()) {
+                                        console_log!("🔍 Discovery found {} real peers", peers.len());
+                                        
+                                        // Process each discovered peer and add to local registry  
+                                        for peer_data in peers {
+                                            if let Ok(peer_info) = serde_json::from_value::<PeerInfo>(peer_data.clone()) {
+                                                console_log!("👤 Adding real peer to registry: {} with capabilities: {:?}", 
+                                                    peer_info.device_id, peer_info.capabilities);
+                                                
+                                                // Store peer in local registry - this is the key missing piece!
+                                                // We need to add this peer to self.peer_registry
+                                                // But we can't directly access it from this closure due to borrowing rules
+                                                // So we'll need a different approach
+                                            }
+                                        }
+                                        
+                                        // For now, log that we need to process this via JavaScript
+                                        console_log!("📋 Discovery results ready for JavaScript processing");
+                                    }
                                 }
                             },
                             "peer_joined" => {
@@ -788,6 +796,38 @@ impl P2PNetwork {
                 for peer in peers {
                     console_log!("👤 Adding real peer: {} with capabilities: [{}]", 
                         peer.device_id, peer.capabilities.join(", "));
+                    
+                    // Debug: Log the complete peer data structure
+                    console_log!("🔍 Peer {} details:", peer.device_id);
+                    console_log!("   - Node Status: is_available={}, is_processing={}, load={:.1}%", 
+                        peer.node_status.is_available, peer.node_status.is_processing, 
+                        peer.node_status.processing_load * 100.0);
+                    console_log!("   - Resources: CPU={:.1}%, Memory={:.1}%, Available nodes={}", 
+                        peer.cpu_usage * 100.0, peer.memory_usage * 100.0, peer.available_nodes);
+                    console_log!("   - Last seen: {}", peer.last_seen);
+                    
+                    // Check if this peer would be considered "free"
+                    let is_free = peer.node_status.is_available &&
+                        !peer.node_status.is_processing &&
+                        peer.node_status.active_queries == 0 &&
+                        peer.node_status.processing_load < 0.3 &&
+                        peer.available_nodes > 0 &&
+                        peer.cpu_usage < 0.7 &&
+                        peer.memory_usage < 0.8 &&
+                        peer.device_id != self.device_id;
+                    
+                    console_log!("   - Free node check: {} (available={}, not_processing={}, low_queries={}, low_load={}, has_nodes={}, low_cpu={}, low_memory={}, not_self={})",
+                        is_free,
+                        peer.node_status.is_available,
+                        !peer.node_status.is_processing,
+                        peer.node_status.active_queries == 0,
+                        peer.node_status.processing_load < 0.3,
+                        peer.available_nodes > 0,
+                        peer.cpu_usage < 0.7,
+                        peer.memory_usage < 0.8,
+                        peer.device_id != self.device_id
+                    );
+                    
                     self.peer_registry.insert(peer.device_id.clone(), peer);
                 }
                 
@@ -795,6 +835,7 @@ impl P2PNetwork {
             },
             Err(e) => {
                 console_log!("❌ Failed to parse discovery results: {:?}", e);
+                console_log!("❌ Raw JSON was: {}", peers_json);
                 false
             }
         }
